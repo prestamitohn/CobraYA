@@ -1,107 +1,72 @@
 import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createPayment, registerAdvancePayment } from '../../services/paymentService';
-import { Cuota, PagoInputDTO } from '../../types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { registrarPago, getMediosPago } from '../../services/paymentService';
+import { Cuota } from '../../types/cobraya';
 import { useToast } from '../../context/ToastContext';
-import { X, DollarSign, Calendar, CreditCard, Percent, Save, Zap } from 'lucide-react';
+import { X, Banknote, Calendar, CreditCard, Percent, Save, Zap } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
-
-import { PaymentMethod, getPaymentMethodLabel } from '../../types/enums';
-
-import { getOfficialDollar } from '../../services/dollarService';
+import { CurrencyInput } from '../ui/CurrencyInput';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   installment: Cuota | null;
   isAdvance?: boolean;
-  currency?: string;
 }
 
-export function PaymentModal({ isOpen, onClose, installment, isAdvance = false, currency = 'ARS' }: PaymentModalProps) {
+export function PaymentModal({ isOpen, onClose, installment, isAdvance = false }: PaymentModalProps) {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
-  
-  const [exchangeRate, setExchangeRate] = useState<number>(1);
-  const [amountInPesos, setAmountInPesos] = useState<number>(0);
 
-  const [formData, setFormData] = useState<Partial<PagoInputDTO>>({
-    monto: 0,
-    fechaPago: new Date().toISOString().split('T')[0],
-    idMedioPago: PaymentMethod.Transfer,
-    descuento: 0,
-    recargo: 0,
-    cotizacion: 1
-  });
+  const { data: mediosPago } = useQuery({ queryKey: ['mediosPago'], queryFn: getMediosPago });
 
-  useEffect(() => {
-    if (currency === 'USD') {
-      getOfficialDollar()
-        .then(data => {
-          setExchangeRate(data.venta);
-          setFormData(prev => ({ ...prev, cotizacion: data.venta }));
-        })
-        .catch(() => addToast('Error al obtener cotización del dólar', 'error'));
-    } else {
-        setExchangeRate(1);
-        setFormData(prev => ({ ...prev, cotizacion: 1 }));
-    }
-  }, [currency]);
+  const [monto, setMonto] = useState(0);
+  const [fechaPago, setFechaPago] = useState(new Date().toISOString().split('T')[0]);
+  const [medioPagoId, setMedioPagoId] = useState<number>(1);
+  const [descuento, setDescuento] = useState(0);
+  const [recargo, setRecargo] = useState(0);
 
   useEffect(() => {
     if (installment) {
-      const initialMonto = installment.saldoPendiente || installment.monto;
-      setFormData(prev => ({
-        ...prev,
-        idCuota: installment.idCuota,
-        monto: initialMonto,
-        fechaPago: new Date().toISOString().split('T')[0],
-        idMedioPago: PaymentMethod.Transfer,
-        descuento: 0,
-        recargo: 0,
-        cotizacion: exchangeRate
-      }));
-      setAmountInPesos(initialMonto * exchangeRate);
+      setMonto(installment.saldoPendiente ?? installment.monto);
+      setFechaPago(new Date().toISOString().split('T')[0]);
+      setDescuento(0);
+      setRecargo(0);
     }
-  }, [installment, exchangeRate]);
+  }, [installment]);
 
-  const handleMontoChange = (val: number) => {
-    setFormData({ ...formData, monto: val });
-    setAmountInPesos(val * exchangeRate);
-  };
-
-  const handlePesosChange = (val: number) => {
-    setAmountInPesos(val);
-    setFormData({ ...formData, monto: val / exchangeRate });
-  };
+  useEffect(() => {
+    if (mediosPago && mediosPago.length > 0 && !mediosPago.some((m) => m.id === medioPagoId)) {
+      setMedioPagoId(mediosPago[0].id);
+    }
+  }, [mediosPago, medioPagoId]);
 
   const mutation = useMutation({
-    mutationFn: (data: PagoInputDTO) => isAdvance ? registerAdvancePayment(data) : createPayment(data),
+    mutationFn: () => registrarPago({
+      cuotaId: installment!.id,
+      medioPagoId,
+      monto: Number(monto),
+      descuento: Number(descuento || 0),
+      recargo: Number(recargo || 0),
+      fechaPago,
+    }),
     onSuccess: () => {
       addToast(isAdvance ? 'Pago anticipado registrado correctamente' : 'Pago registrado exitosamente', 'success');
       queryClient.invalidateQueries({ queryKey: ['installments'] });
-      queryClient.invalidateQueries({ queryKey: ['loanSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['loan'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
       onClose();
     },
     onError: (error: any) => {
-      addToast(error.response?.data?.message || 'Error al registrar el pago', 'error');
+      addToast(error.message || 'Error al registrar el pago', 'error');
     }
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!installment || !formData.monto) return;
-
-    mutation.mutate({
-      idCuota: installment.idCuota,
-      monto: Number(formData.monto),
-      fechaPago: new Date(formData.fechaPago!).toISOString(),
-      idMedioPago: Number(formData.idMedioPago),
-      descuento: Number(formData.descuento || 0),
-      recargo: Number(formData.recargo || 0),
-      cotizacion: Number(formData.cotizacion || 1)
-    } as PagoInputDTO);
+    if (!installment || !monto) return;
+    mutation.mutate();
   };
 
   if (!isOpen || !installment) return null;
@@ -128,39 +93,17 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false, 
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted">Monto a Pagar ({currency})</label>
+            <label className="text-sm font-medium text-muted">Monto a Pagar (L)</label>
             <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-              <input
-                type="number"
-                step="0.01"
-                required
-                value={formData.monto}
-                onChange={(e) => handleMontoChange(Number(e.target.value))}
+              <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+              <CurrencyInput
+                value={monto}
+                onValueChange={setMonto}
                 className="w-full bg-surfaceHighlight border border-border rounded-lg pl-10 pr-4 py-2 text-main focus:border-primary-500 focus:outline-none"
               />
             </div>
-            {currency === 'USD' && (
-               <div className="mt-2 p-3 bg-surfaceHighlight/50 rounded-lg border border-border">
-                 <div className="flex justify-between items-center mb-2">
-                   <span className="text-xs text-muted">Cotización Oficial:</span>
-                   <span className="text-sm font-bold text-main">{formatCurrency(exchangeRate, 'ARS')}</span>
-                 </div>
-                 <label className="text-sm font-medium text-muted block mb-1">Equivalente en Pesos (ARS)</label>
-                 <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                    <input 
-                      type="number"
-                      step="0.01"
-                      value={amountInPesos}
-                      onChange={(e) => handlePesosChange(Number(e.target.value))}
-                      className="w-full bg-surface border border-border rounded-lg pl-10 pr-4 py-2 text-main focus:border-primary-500 focus:outline-none text-sm"
-                    />
-                 </div>
-               </div>
-            )}
             <p className="text-xs text-muted">
-              Saldo pendiente: {formatCurrency(installment.saldoPendiente || installment.monto, currency)}
+              Saldo pendiente: {formatCurrency(installment.saldoPendiente ?? installment.monto)}
             </p>
           </div>
 
@@ -171,8 +114,8 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false, 
               <input
                 type="date"
                 required
-                value={formData.fechaPago}
-                onChange={(e) => setFormData({ ...formData, fechaPago: e.target.value })}
+                value={fechaPago}
+                onChange={(e) => setFechaPago(e.target.value)}
                 className="w-full bg-surfaceHighlight border border-border rounded-lg pl-10 pr-4 py-2 text-main focus:border-primary-500 focus:outline-none"
               />
             </div>
@@ -183,14 +126,13 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false, 
             <div className="relative">
               <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
               <select
-                value={formData.idMedioPago}
-                onChange={(e) => setFormData({ ...formData, idMedioPago: Number(e.target.value) })}
-                className="w-full bg-surfaceHighlight border border-border rounded-lg pl-10 pr-4 py-2 text-main focus:border-primary-500 focus:outline-none appearance-none"
+                value={medioPagoId}
+                onChange={(e) => setMedioPagoId(Number(e.target.value))}
+                className="w-full bg-surfaceHighlight border border-border rounded-lg pl-10 pr-4 py-2 text-main focus:border-primary-500 focus:outline-none appearance-none capitalize"
               >
-                <option value={PaymentMethod.Transfer}>{getPaymentMethodLabel(PaymentMethod.Transfer)}</option>
-                <option value={PaymentMethod.Cash}>{getPaymentMethodLabel(PaymentMethod.Cash)}</option>
-                <option value={PaymentMethod.CashUSD}>{getPaymentMethodLabel(PaymentMethod.CashUSD)}</option>
-                <option value={PaymentMethod.TransferUSD}>{getPaymentMethodLabel(PaymentMethod.TransferUSD)}</option>
+                {mediosPago?.map((m) => (
+                  <option key={m.id} value={m.id} className="capitalize">{m.nombre}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -203,8 +145,8 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false, 
                 <input
                   type="number"
                   step="0.01"
-                  value={formData.descuento}
-                  onChange={(e) => setFormData({ ...formData, descuento: Number(e.target.value) })}
+                  value={descuento}
+                  onChange={(e) => setDescuento(Number(e.target.value))}
                   className="w-full bg-surfaceHighlight border border-border rounded-lg pl-10 pr-4 py-2 text-main focus:border-primary-500 focus:outline-none"
                 />
               </div>
@@ -216,8 +158,8 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false, 
                 <input
                   type="number"
                   step="0.01"
-                  value={formData.recargo}
-                  onChange={(e) => setFormData({ ...formData, recargo: Number(e.target.value) })}
+                  value={recargo}
+                  onChange={(e) => setRecargo(Number(e.target.value))}
                   className="w-full bg-surfaceHighlight border border-border rounded-lg pl-10 pr-4 py-2 text-main focus:border-primary-500 focus:outline-none"
                 />
               </div>

@@ -1,52 +1,41 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getBorrowerByDni, updateBorrower } from '../services/borrowerService';
-import { PrestatarioDTO } from '../types';
+import { getBorrowerByDocumento, updateBorrower } from '../services/borrowerService';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { BorrowerForm, BorrowerFormData } from '../components/borrowers/BorrowerForm';
 import { useToast } from '../context/ToastContext';
 
 export function EditBorrower() {
   const navigate = useNavigate();
-  const { dni } = useParams<{ dni: string }>();
+  const { documento } = useParams<{ documento: string }>();
   const { addToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [updateError, setUpdateError] = useState('');
 
   const { data: borrower, isLoading: isLoadingData, error: loadError } = useQuery({
-    queryKey: ['borrower', dni],
-    queryFn: () => getBorrowerByDni(Number(dni)),
-    enabled: !!dni,
+    queryKey: ['borrower', documento],
+    queryFn: () => getBorrowerByDocumento(documento!),
+    enabled: !!documento,
   });
 
   const onSubmit = async (data: BorrowerFormData) => {
-    if (!dni) return;
-    
+    if (!borrower) return;
+
     setIsLoading(true);
     setUpdateError('');
     try {
-      const payload: PrestatarioDTO = {
-        ...data,
-        dni: Number(data.dni),
-        esActivo: borrower?.esActivo ?? true, // Keep existing status
-        // Optional fields
-        telefono: data.telefono || '',
-        domicilio: data.domicilio || '',
-        correo: data.correo || '',
-        garanteNombre: data.garanteNombre || undefined,
-        garanteApellido: data.garanteApellido || undefined,
-        garanteDni: data.garanteDni || undefined,
-        garanteTelefono: data.garanteTelefono || undefined,
-        garanteCorreo: data.garanteCorreo || undefined,
-        garanteDomicilio: data.garanteDomicilio || undefined,
-      };
-      
-      await updateBorrower(Number(dni), payload);
+      await updateBorrower(borrower.id, {
+        nombre: data.nombre,
+        apellido: data.apellido,
+        telefono: data.telefono || undefined,
+        domicilio: data.domicilio || undefined,
+        correo: data.correo || undefined,
+      });
       addToast('Cliente actualizado correctamente', 'success');
       navigate('/borrowers');
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Error al actualizar el cliente';
+      const msg = err.message || 'Error al actualizar el cliente';
       setUpdateError(msg);
       addToast(msg, 'error');
     } finally {
@@ -67,7 +56,7 @@ export function EditBorrower() {
       <div className="flex flex-col items-center justify-center h-full text-red-400">
         <AlertTriangle className="h-12 w-12 mb-4" />
         <p>Error al cargar los datos del cliente</p>
-        <button 
+        <button
           onClick={() => navigate('/borrowers')}
           className="mt-4 text-primary-400 hover:underline"
         >
@@ -80,7 +69,7 @@ export function EditBorrower() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button 
+        <button
           onClick={() => navigate('/borrowers')}
           className="p-2 hover:bg-surfaceHighlight rounded-lg transition-colors text-muted hover:text-white"
         >
@@ -99,13 +88,13 @@ export function EditBorrower() {
             <p>{updateError}</p>
           </div>
         )}
-        
+
         {borrower && (
-          <BorrowerForm 
+          <BorrowerForm
             initialData={borrower}
-            onSubmit={onSubmit} 
-            isLoading={isLoading} 
-            submitLabel="Actualizar Cliente" 
+            onSubmit={onSubmit}
+            isLoading={isLoading}
+            submitLabel="Actualizar Cliente"
           />
         )}
       </div>

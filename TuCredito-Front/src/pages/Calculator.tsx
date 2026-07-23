@@ -1,54 +1,46 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { simulateLoan, createLoan } from '../services/loanService';
 import { getBorrowers } from '../services/borrowerService';
-import { SimulacionPrestamoEntryDTO } from '../types';
-import { Calculator as CalculatorIcon, DollarSign, Calendar, Percent, User, X, Check, Search, CalendarDays, BookOpen, ChevronUp, ChevronDown } from 'lucide-react';
+import type { SimulacionResultado } from '../lib/amortizacion';
+import { SISTEMAS_AMORTIZACION, FRECUENCIAS_COBRO, SistemaAmortizacion, FrecuenciaCobro } from '../types/cobraya';
+import { Calculator as CalculatorIcon, Banknote, Calendar, Percent, User, X, Check, Search, CalendarDays, BookOpen, ChevronUp, ChevronDown } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { LoanStatus } from '../types/enums';
+import { CurrencyInput } from '../components/ui/CurrencyInput';
+
+interface SimulateFormData {
+  montoPrestamo: number;
+  interesPeriodo: number;
+  cantidadCuotas: number;
+  sistemaAmortizacion: SistemaAmortizacion;
+  frecuenciaCobro: FrecuenciaCobro;
+}
 
 export function Calculator() {
-  const { register, handleSubmit } = useForm<SimulacionPrestamoEntryDTO>({
+  const { register, handleSubmit, control } = useForm<SimulateFormData>({
     defaultValues: {
-      idSistAmortizacion: 1,
-      moneda: 'ARS'
+      sistemaAmortizacion: 'directo',
+      frecuenciaCobro: 'mensual',
     }
   });
-  const [result, setResult] = useState<any>(null);
-  const [simulationParams, setSimulationParams] = useState<SimulacionPrestamoEntryDTO | null>(null);
-  
+  const [result, setResult] = useState<SimulacionResultado | null>(null);
+  const [simulationParams, setSimulationParams] = useState<SimulateFormData | null>(null);
+  const [simulationError, setSimulationError] = useState('');
+
   const { addToast } = useToast();
   const queryClient = useQueryClient();
 
-  // Collapsible Guide State
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedBorrowerId, setSelectedBorrowerId] = useState<string>("");
-  const [creationData, setCreationData] = useState({
-    dniPrestatario: '',
-    nombrePrestatario: '',
-    fechaOtorgamiento: new Date().toISOString().split('T')[0],
-    fec1erVto: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
-  });
+  const [selectedClienteId, setSelectedClienteId] = useState<string>('');
+  const [fechaOtorgamiento, setFechaOtorgamiento] = useState(new Date().toISOString().split('T')[0]);
 
   const { data: borrowers } = useQuery({
     queryKey: ['borrowers'],
     queryFn: () => getBorrowers(),
-  });
-
-  const mutation = useMutation({
-    mutationFn: simulateLoan,
-    onSuccess: (data) => {
-      setResult(data);
-      addToast('Simulación calculada correctamente', 'success');
-    },
-    onError: (error: any) => {
-      addToast(error.response?.data?.message || 'Error al calcular la simulación', 'error');
-    }
   });
 
   const createLoanMutation = useMutation({
@@ -59,64 +51,45 @@ export function Calculator() {
       setResult(null);
       setSimulationParams(null);
       queryClient.invalidateQueries({ queryKey: ['loans'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardKpis'] });
     },
     onError: (error: any) => {
-      addToast(error.response?.data?.message || 'Error al crear el préstamo', 'error');
+      addToast(error.message || 'Error al crear el préstamo', 'error');
     }
   });
 
-  const onSubmit = (data: SimulacionPrestamoEntryDTO) => {
-    // Convert strings to numbers
-    const payload = {
+  const onSubmit = (data: SimulateFormData) => {
+    setSimulationError('');
+    setSimulationParams(data);
+    try {
+      const resultado = simulateLoan({
         montoPrestamo: Number(data.montoPrestamo),
-        interesMensual: Number(data.interesMensual),
         cantidadCuotas: Number(data.cantidadCuotas),
-        fechaInicio: new Date().toISOString(),
-        idSistAmortizacion: Number(data.idSistAmortizacion),
-        moneda: data.moneda
-    };
-    setSimulationParams(payload);
-    mutation.mutate(payload);
+        tasaInteres: Number(data.interesPeriodo),
+        fechaInicio: new Date(`${fechaOtorgamiento}T00:00:00Z`),
+        sistemaAmortizacion: data.sistemaAmortizacion,
+        frecuenciaCobro: data.frecuenciaCobro,
+      });
+      setResult(resultado);
+    } catch (err: any) {
+      setSimulationError(err.message || 'No se pudo calcular la simulación');
+      setResult(null);
+    }
   };
 
   const handleCreateLoan = () => {
-    if (!simulationParams) return;
-    
-    createLoanMutation.mutate({
-      dniPrestatario: Number(creationData.dniPrestatario),
-      nombrePrestatario: creationData.nombrePrestatario,
-      montoOtorgado: simulationParams.montoPrestamo,
-      cantidadCtas: simulationParams.cantidadCuotas,
-      tasaInteres: simulationParams.interesMensual,
-      idEstado: LoanStatus.Active,
-      fechaOtorgamiento: new Date(creationData.fechaOtorgamiento).toISOString(),
-      fec1erVto: new Date(creationData.fec1erVto).toISOString(),
-      idSistAmortizacion: simulationParams.idSistAmortizacion || 1, 
-      moneda: simulationParams.moneda || 'ARS'
-    });
-  };
+    if (!simulationParams || !selectedClienteId) return;
 
-  const handleBorrowerSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const dni = e.target.value;
-    setSelectedBorrowerId(dni);
-    
-    if (dni) {
-      const borrower = borrowers?.find(b => b.dni.toString() === dni);
-      if (borrower) {
-        setCreationData(prev => ({
-          ...prev,
-          dniPrestatario: borrower.dni.toString(),
-          nombrePrestatario: `${borrower.nombre} ${borrower.apellido}`
-        }));
-      }
-    } else {
-        setCreationData(prev => ({
-          ...prev,
-          dniPrestatario: '',
-          nombrePrestatario: ''
-        }));
-    }
+    createLoanMutation.mutate({
+      clienteId: selectedClienteId,
+      montoPrestamo: Number(simulationParams.montoPrestamo),
+      cantidadCuotas: Number(simulationParams.cantidadCuotas),
+      tasaInteres: Number(simulationParams.interesPeriodo),
+      sistemaAmortizacion: simulationParams.sistemaAmortizacion,
+      frecuenciaCobro: simulationParams.frecuenciaCobro,
+      fechaOtorgamiento,
+      moneda: 'HNL',
+    });
   };
 
   return (
@@ -131,40 +104,33 @@ export function Calculator() {
         <div className="lg:col-span-4 glass-panel p-6 rounded-2xl border border-border h-fit">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Moneda</label>
+              <label className="block text-sm font-medium text-muted mb-1">Monto del Préstamo (L)</label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                <select
-                  {...register('moneda')}
-                  className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2.5 text-main focus:outline-none focus:border-primary-500 transition-colors appearance-none"
-                >
-                  <option value="ARS">Peso Argentino (ARS)</option>
-                  <option value="USD">Dólar Estadounidense (USD)</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted mb-1">Monto del Préstamo</label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                <input
-                  type="number"
-                  {...register('montoPrestamo', { required: true, min: 1 })}
-                  className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2.5 text-main placeholder-muted focus:outline-none focus:border-primary-500 transition-colors"
-                  placeholder="0.00"
+                <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+                <Controller
+                  control={control}
+                  name="montoPrestamo"
+                  rules={{ required: true, min: 1 }}
+                  render={({ field }) => (
+                    <CurrencyInput
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2.5 text-main placeholder-muted focus:outline-none focus:border-primary-500 transition-colors"
+                      placeholder="0"
+                    />
+                  )}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Tasa Mensual (%)</label>
+              <label className="block text-sm font-medium text-muted mb-1">Tasa por Período (%)</label>
               <div className="relative">
                 <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
                 <input
                   type="number"
                   step="0.1"
-                  {...register('interesMensual', { required: true, min: 0 })}
+                  {...register('interesPeriodo', { required: true, min: 0 })}
                   className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2.5 text-main placeholder-muted focus:outline-none focus:border-primary-500 transition-colors"
                   placeholder="0.0"
                 />
@@ -185,37 +151,48 @@ export function Calculator() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Sistema de Amortización</label>
+              <label className="block text-sm font-medium text-muted mb-1">Frecuencia de Cobro</label>
               <div className="relative">
-                <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+                <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
                 <select
-                  {...register('idSistAmortizacion')}
+                  {...register('frecuenciaCobro')}
                   className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2.5 text-main focus:outline-none focus:border-primary-500 transition-colors appearance-none"
                 >
-                    <option value="1">Directo (Tasa Plana)</option>
-                    <option value="2">Francés (Cuota Fija)</option>
-                    <option value="3">Alemán (Amort. Fija)</option>
-                    <option value="4">Americano (Solo Interés)</option>
+                  {FRECUENCIAS_COBRO.map((f) => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Sistema de Amortización</label>
+              <div className="relative">
+                <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+                <select
+                  {...register('sistemaAmortizacion')}
+                  className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2.5 text-main focus:outline-none focus:border-primary-500 transition-colors appearance-none"
+                >
+                  {SISTEMAS_AMORTIZACION.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {simulationError && <p className="text-xs text-red-400">{simulationError}</p>}
+
             <button
               type="submit"
-              disabled={mutation.isPending}
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 rounded-lg transition-all shadow-lg shadow-primary-500/20 mt-4 flex items-center justify-center gap-2"
             >
-              {mutation.isPending ? 'Calculando...' : (
-                <>
-                  <CalculatorIcon className="h-5 w-5" />
-                  Calcular
-                </>
-              )}
+              <CalculatorIcon className="h-5 w-5" />
+              Calcular
             </button>
           </form>
 
             <div className="mt-6 pt-6 border-t border-border">
-                <button 
+                <button
                     type="button"
                     onClick={() => setIsGuideOpen(!isGuideOpen)}
                     className="flex items-center justify-between w-full text-sm font-medium text-main mb-3 hover:text-primary-500 transition-colors group"
@@ -226,19 +203,23 @@ export function Calculator() {
                     </div>
                     {isGuideOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
-                
+
                 {isGuideOpen && (
                     <div className="space-y-3 text-xs text-muted animate-in fade-in slide-in-from-top-2">
-                        <div className="p-3 bg-surfaceHighlight/30 rounded-lg border border-border/50">
-                            <span className="font-bold text-main block mb-1">Francés</span>
-                            Cuota constante. Al principio pagas más interés y menos capital. Ideal para cuotas fijas.
+                        <div className="p-3 bg-primary-500/10 rounded-lg border border-primary-500/30">
+                            <span className="font-bold text-primary-400 block mb-1">Interés Simple sobre Saldo (el más usado en HN)</span>
+                            Cuota fija calculada con la tasa aplicada sobre el monto original, repartida en partes iguales. Es la forma en que trabaja la mayoría de los prestamistas informales en Honduras (cobro diario, semanal o quincenal).
                         </div>
                         <div className="p-3 bg-surfaceHighlight/30 rounded-lg border border-border/50">
-                            <span className="font-bold text-main block mb-1">Alemán</span>
+                            <span className="font-bold text-main block mb-1">Francés (banca formal)</span>
+                            Cuota constante. Al principio pagas más interés y menos capital. Es el sistema típico de bancos y financieras (hipotecas, préstamos personales).
+                        </div>
+                        <div className="p-3 bg-surfaceHighlight/30 rounded-lg border border-border/50">
+                            <span className="font-bold text-main block mb-1">Alemán (banca formal)</span>
                             Amortización de capital constante. La cuota disminuye con el tiempo. Pagas menos intereses totales.
                         </div>
                         <div className="p-3 bg-surfaceHighlight/30 rounded-lg border border-border/50">
-                            <span className="font-bold text-main block mb-1">Americano</span>
+                            <span className="font-bold text-main block mb-1">Americano (banca formal)</span>
                             Pagas solo intereses durante el plazo. El capital se devuelve todo junto al final.
                         </div>
                     </div>
@@ -254,19 +235,19 @@ export function Calculator() {
                   <div className="p-4 rounded-xl bg-surfaceHighlight/50 border border-border">
                      <p className="text-xs text-muted mb-1">Cuota Promedio</p>
                      <p className="text-lg font-bold text-primary-400">
-                        {formatCurrency(result.detalleCuotas.reduce((acc: number, curr: any) => acc + curr.monto, 0) / result.detalleCuotas.length, simulationParams?.moneda)}
+                        {formatCurrency(result.detalleCuotas.reduce((acc, curr) => acc + curr.monto, 0) / result.detalleCuotas.length)}
                      </p>
                   </div>
                   <div className="p-4 rounded-xl bg-surfaceHighlight/50 border border-border">
                      <p className="text-xs text-muted mb-1">Total Intereses</p>
                      <p className="text-lg font-bold text-accent-pink">
-                        {formatCurrency(result.detalleCuotas.reduce((acc: number, curr: any) => acc + curr.interes, 0), simulationParams?.moneda)}
+                        {formatCurrency(result.detalleCuotas.reduce((acc, curr) => acc + curr.interes, 0))}
                      </p>
                   </div>
                    <div className="p-4 rounded-xl bg-surfaceHighlight/50 border border-border">
                      <p className="text-xs text-muted mb-1">Total a Pagar</p>
                      <p className="text-lg font-bold text-main">
-                        {formatCurrency(result.detalleCuotas.reduce((acc: number, curr: any) => acc + curr.monto, 0), simulationParams?.moneda)}
+                        {formatCurrency(result.totalAPagar)}
                      </p>
                   </div>
                </div>
@@ -284,14 +265,14 @@ export function Calculator() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {result.detalleCuotas.map((cuota: any, index: number) => (
-                      <tr key={index} className="hover:bg-surfaceHighlight/30">
+                    {result.detalleCuotas.map((cuota) => (
+                      <tr key={cuota.numeroCuota} className="hover:bg-surfaceHighlight/30">
                         <td className="px-4 py-2.5 text-muted">{cuota.numeroCuota}</td>
-                        <td className="px-4 py-2.5 font-medium text-main">{formatCurrency(cuota.monto, simulationParams?.moneda)}</td>
+                        <td className="px-4 py-2.5 font-medium text-main">{formatCurrency(cuota.monto)}</td>
                         <td className="px-4 py-2.5 text-muted">{formatDate(cuota.fechaVencimiento)}</td>
-                        <td className="px-4 py-2.5 text-accent-pink">{formatCurrency(cuota.interes, simulationParams?.moneda)}</td>
-                        <td className="px-4 py-2.5 text-green-400">{formatCurrency(cuota.capital, simulationParams?.moneda)}</td>
-                        <td className="px-4 py-2.5 text-muted">{formatCurrency(Math.abs(cuota.saldoRestante), simulationParams?.moneda)}</td>
+                        <td className="px-4 py-2.5 text-accent-pink">{formatCurrency(cuota.interes)}</td>
+                        <td className="px-4 py-2.5 text-green-400">{formatCurrency(cuota.capital)}</td>
+                        <td className="px-4 py-2.5 text-muted">{formatCurrency(Math.abs(cuota.saldoRestante))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -327,23 +308,23 @@ export function Calculator() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-6">
                 <div className="p-4 bg-surfaceHighlight/50 rounded-xl border border-border">
                     <label className="block text-sm font-medium text-muted mb-2 flex items-center gap-2">
                         <User className="h-4 w-4 text-primary-500" />
-                        Seleccionar Prestatario
+                        Seleccionar Cliente
                     </label>
                     <div className="relative">
                         <select
-                            value={selectedBorrowerId}
-                            onChange={handleBorrowerSelect}
+                            value={selectedClienteId}
+                            onChange={(e) => setSelectedClienteId(e.target.value)}
                             className="block w-full rounded-xl border border-border bg-surface px-4 py-3 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-200"
                         >
-                            <option value="">-- Nuevo Prestatario / Ingreso Manual --</option>
+                            <option value="">-- Seleccione un cliente --</option>
                             {borrowers?.map((borrower) => (
-                                <option key={borrower.dni} value={borrower.dni}>
-                                    {borrower.apellido}, {borrower.nombre} (DNI: {borrower.dni})
+                                <option key={borrower.id} value={borrower.id}>
+                                    {borrower.apellido ? `${borrower.apellido}, ${borrower.nombre}` : borrower.nombre} (Identidad: {borrower.documento})
                                 </option>
                             ))}
                         </select>
@@ -354,46 +335,14 @@ export function Calculator() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-muted mb-1">DNI Prestatario</label>
-                        <input
-                            value={creationData.dniPrestatario}
-                            onChange={(e) => setCreationData(prev => ({ ...prev, dniPrestatario: e.target.value }))}
-                            className={`w-full bg-surface/50 border border-border rounded-lg px-4 py-2.5 text-main ${selectedBorrowerId ? 'opacity-75' : ''}`}
-                            placeholder="Ingrese DNI"
-                            readOnly={!!selectedBorrowerId}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-muted mb-1">Nombre Completo</label>
-                        <input
-                            value={creationData.nombrePrestatario}
-                            onChange={(e) => setCreationData(prev => ({ ...prev, nombrePrestatario: e.target.value }))}
-                            className={`w-full bg-surface/50 border border-border rounded-lg px-4 py-2.5 text-main ${selectedBorrowerId ? 'opacity-75' : ''}`}
-                            placeholder="Ingrese Nombre"
-                            readOnly={!!selectedBorrowerId}
-                        />
-                    </div>
-                    <div>
+                     <div>
                         <label className="block text-sm font-medium text-muted mb-1">Fecha Otorgamiento</label>
                         <div className="relative">
                             <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
                             <input
                                 type="date"
-                                value={creationData.fechaOtorgamiento}
-                                onChange={(e) => setCreationData(prev => ({ ...prev, fechaOtorgamiento: e.target.value }))}
-                                className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2.5 text-main"
-                            />
-                        </div>
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium text-muted mb-1">Primer Vencimiento</label>
-                        <div className="relative">
-                            <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                            <input
-                                type="date"
-                                value={creationData.fec1erVto}
-                                onChange={(e) => setCreationData(prev => ({ ...prev, fec1erVto: e.target.value }))}
+                                value={fechaOtorgamiento}
+                                onChange={(e) => setFechaOtorgamiento(e.target.value)}
                                 className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2.5 text-main"
                             />
                         </div>
@@ -405,11 +354,11 @@ export function Calculator() {
                     <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                             <span className="text-muted block">Monto</span>
-                            <span className="text-main font-medium">{formatCurrency(simulationParams?.montoPrestamo || 0, simulationParams?.moneda)}</span>
+                            <span className="text-main font-medium">{formatCurrency(simulationParams?.montoPrestamo || 0)}</span>
                         </div>
                          <div>
                             <span className="text-muted block">Tasa</span>
-                            <span className="text-main font-medium">{simulationParams?.interesMensual}%</span>
+                            <span className="text-main font-medium">{simulationParams?.interesPeriodo}%</span>
                         </div>
                          <div>
                             <span className="text-muted block">Cuotas</span>
@@ -428,7 +377,7 @@ export function Calculator() {
                 </button>
                 <button
                     onClick={handleCreateLoan}
-                    disabled={createLoanMutation.isPending || !creationData.dniPrestatario || !creationData.nombrePrestatario}
+                    disabled={createLoanMutation.isPending || !selectedClienteId}
                     className="px-4 py-2 rounded-lg text-sm font-medium bg-primary-600 hover:bg-primary-700 text-white transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                     {createLoanMutation.isPending ? 'Procesando...' : 'Confirmar Préstamo'}

@@ -1,5 +1,5 @@
-export const formatCurrency = (amount: number, currency: string = 'ARS'): string => {
-  return new Intl.NumberFormat('es-AR', {
+export const formatCurrency = (amount: number, currency: string = 'HNL'): string => {
+  return new Intl.NumberFormat('es-HN', {
     style: 'currency',
     currency: currency,
     minimumFractionDigits: 0,
@@ -14,8 +14,9 @@ export const formatDate = (date: string | Date, options?: Intl.DateTimeFormatOpt
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
+    timeZone: 'UTC',
   };
-  return d.toLocaleDateString('es-AR', options || defaultOptions);
+  return d.toLocaleDateString('es-HN', options || defaultOptions);
 };
 
 export const calculateDaysToMaturity = (date: string | Date): number => {

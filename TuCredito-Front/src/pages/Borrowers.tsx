@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getBorrowers, toggleBorrowerStatus } from '../services/borrowerService';
+import { getBorrowers, toggleBorrowerStatus, BorrowerFilters } from '../services/borrowerService';
 import { getDelinquencyDetails } from '../services/dashboardService';
-import { PrestatarioDTO } from '../types';
-import { Plus, Search, User, Mail, Phone, MapPin, AlertCircle, Filter, X, Power, Pencil, Download } from 'lucide-react';
-import { exportToPDF } from '../utils/pdfGenerator';
+import { Plus, Search, User, Mail, Phone, MapPin, AlertCircle, Filter, X, Power, Pencil } from 'lucide-react';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 
@@ -17,11 +15,11 @@ export function Borrowers() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string>('all'); // all, active, inactive
-  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; dni?: number; currentStatus?: boolean }>({ isOpen: false });
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id?: string; currentStatus?: boolean }>({ isOpen: false });
 
   const toggleStatusMutation = useMutation({
-    mutationFn: ({ dni, activo }: { dni: number; activo: boolean }) => 
-      toggleBorrowerStatus(dni, activo),
+    mutationFn: ({ id, activo }: { id: string; activo: boolean }) =>
+      toggleBorrowerStatus(id, activo),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['borrowers'] });
       addToast(`Cliente ${variables.activo ? 'activado' : 'desactivado'} correctamente`, 'success');
@@ -32,41 +30,25 @@ export function Borrowers() {
     }
   });
 
-  const handleToggleStatus = (dni: number, currentStatus: boolean) => {
-    setConfirmModal({ isOpen: true, dni, currentStatus });
+  const handleToggleStatus = (id: string, currentStatus: boolean) => {
+    setConfirmModal({ isOpen: true, id, currentStatus });
   };
 
   const onConfirmToggle = () => {
-    if (confirmModal.dni && confirmModal.currentStatus !== undefined) {
-      toggleStatusMutation.mutate({ dni: confirmModal.dni, activo: !confirmModal.currentStatus });
+    if (confirmModal.id && confirmModal.currentStatus !== undefined) {
+      toggleStatusMutation.mutate({ id: confirmModal.id, activo: !confirmModal.currentStatus });
     }
   };
 
-  const handleExport = () => {
-    if (!borrowers) return;
+  const getFilters = (): BorrowerFilters => {
+    const filters: BorrowerFilters = {};
 
-    const headers = ['DNI', 'Nombre', 'Apellido', 'Correo', 'Teléfono', 'Estado'];
-    const data = borrowers.map(b => [
-      b.dni.toString(),
-      b.nombre,
-      b.apellido,
-      b.correo || '-',
-      b.telefono || '-',
-      b.esActivo ? 'Activo' : 'Inactivo'
-    ]);
-
-    exportToPDF('Reporte de Clientes', headers, data, 'clientes');
-  };
-
-  const getFilters = (): Partial<PrestatarioDTO> => {
-    const filters: Partial<PrestatarioDTO> = {};
-    
     if (debouncedSearchTerm) {
       filters.nombre = debouncedSearchTerm;
     }
 
     if (activeFilter !== 'all') {
-      filters.esActivo = activeFilter === 'active';
+      filters.activo = activeFilter === 'active';
     }
 
     return filters;
@@ -75,13 +57,6 @@ export function Borrowers() {
   const { data: borrowers, isLoading, error } = useQuery({
     queryKey: ['borrowers', debouncedSearchTerm, activeFilter],
     queryFn: () => getBorrowers(getFilters()),
-    select: (data) => {
-      return [...data].sort((a, b) => {
-        const nameA = `${a.nombre} ${a.apellido}`.toLowerCase();
-        const nameB = `${b.nombre} ${b.apellido}`.toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
-    }
   });
 
   const { data: delinquencyDetails } = useQuery({
@@ -116,14 +91,7 @@ export function Borrowers() {
           <p className="text-muted">Directorio de prestatarios registrados</p>
         </div>
         <div className="flex gap-2">
-            <button 
-              onClick={handleExport}
-              className="flex items-center gap-2 bg-surfaceHighlight hover:bg-border text-main px-4 py-2 rounded-lg transition-colors border border-border"
-            >
-              <Download className="h-5 w-5" />
-              Exportar
-            </button>
-            <button 
+            <button
               onClick={() => navigate('/borrowers/create')}
               className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"
             >
@@ -152,7 +120,7 @@ export function Borrowers() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
               <input
                 type="text"
-                placeholder="Buscar cliente por nombre o DNI (Presione Enter)"
+                placeholder="Buscar cliente por nombre o identidad (Presione Enter)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => {
@@ -163,7 +131,7 @@ export function Borrowers() {
                 className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2 text-sm text-main placeholder-muted focus:outline-none focus:border-primary-500 transition-colors"
               />
             </div>
-            <button 
+            <button
               onClick={() => setShowFilters(!showFilters)}
               className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${showFilters ? 'bg-primary-500/10 border-primary-500 text-primary-500' : 'border-border text-muted hover:bg-surfaceHighlight'}`}
             >
@@ -197,9 +165,9 @@ export function Borrowers() {
                   </button>
                 </div>
               </div>
-              
+
               {(debouncedSearchTerm || activeFilter !== 'all') && (
-                 <button 
+                 <button
                   onClick={() => {
                     setSearchTerm('');
                     setDebouncedSearchTerm('');
@@ -217,11 +185,11 @@ export function Borrowers() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {borrowers?.map((borrower) => {
-            const isDelinquent = delinquentNames.has(`${borrower.nombre} ${borrower.apellido}`);
+            const isDelinquent = delinquentNames.has(`${borrower.nombre} ${borrower.apellido ?? ''}`.trim());
             return (
-            <div key={borrower.dni} className={`rounded-xl p-5 border transition-all group ${
-              isDelinquent 
-                ? 'bg-red-500/5 border-red-500/30 hover:border-red-500/50' 
+            <div key={borrower.id} className={`rounded-xl p-5 border transition-all group ${
+              isDelinquent
+                ? 'bg-red-500/5 border-red-500/30 hover:border-red-500/50'
                 : 'bg-surfaceHighlight/30 border-border hover:border-primary-500/50'
             }`}>
               <div className="flex items-start justify-between mb-4">
@@ -237,12 +205,12 @@ export function Borrowers() {
                     }`}>
                       {borrower.nombre} {borrower.apellido}
                     </h3>
-                    <p className="text-xs text-muted">DNI: {borrower.dni}</p>
+                    <p className="text-xs text-muted">Identidad: {borrower.documento}</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${borrower.esActivo ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                    {borrower.esActivo ? 'Activo' : 'Inactivo'}
+                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${borrower.activo ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                    {borrower.activo ? 'Activo' : 'Inactivo'}
                   </span>
                   {isDelinquent && (
                     <span className="px-2 py-1 rounded-md text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/20">
@@ -251,7 +219,7 @@ export function Borrowers() {
                   )}
                 </div>
               </div>
-              
+
               <div className="space-y-2 text-sm text-muted">
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4" />
@@ -269,38 +237,38 @@ export function Borrowers() {
 
               <div className="mt-4 pt-4 border-t border-border flex justify-between items-center">
                  <div className="flex gap-3">
-                    <button 
-                        onClick={() => navigate(`/borrowers/${borrower.dni}`)}
+                    <button
+                        onClick={() => navigate(`/borrowers/${borrower.documento}`)}
                         className="text-sm font-medium text-primary-400 hover:text-primary-300"
                     >
                         Ver Perfil
                     </button>
-                    <button 
-                        onClick={() => navigate(`/borrowers/${borrower.dni}?tab=loans`)}
+                    <button
+                        onClick={() => navigate(`/borrowers/${borrower.documento}?tab=loans`)}
                         className="text-sm font-medium text-muted hover:text-main"
                     >
                         Historial
                     </button>
-                    <button 
-                        onClick={() => navigate(`/borrowers/edit/${borrower.dni}`)}
+                    <button
+                        onClick={() => navigate(`/borrowers/edit/${borrower.documento}`)}
                         className="text-sm font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1"
                         title="Editar Cliente"
                     >
                         <Pencil className="h-3 w-3" /> Editar
                     </button>
                  </div>
-                 
+
                  <button
-                    onClick={() => handleToggleStatus(borrower.dni, borrower.esActivo)}
-                    title={borrower.esActivo ? "Desactivar Cliente" : "Activar Cliente"}
-                    className={`p-2 rounded-full transition-colors ${borrower.esActivo ? 'text-green-500 hover:bg-green-500/10' : 'text-red-500 hover:bg-red-500/10'}`}
+                    onClick={() => handleToggleStatus(borrower.id, borrower.activo)}
+                    title={borrower.activo ? "Desactivar Cliente" : "Activar Cliente"}
+                    className={`p-2 rounded-full transition-colors ${borrower.activo ? 'text-green-500 hover:bg-green-500/10' : 'text-red-500 hover:bg-red-500/10'}`}
                  >
                     <Power className="h-4 w-4" />
                  </button>
               </div>
             </div>
           ); })}
-          
+
           {borrowers?.length === 0 && (
             <div className="col-span-full py-12 text-center text-muted">
               <User className="h-12 w-12 mx-auto mb-4 opacity-20" />

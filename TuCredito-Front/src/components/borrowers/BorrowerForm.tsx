@@ -2,11 +2,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2 } from 'lucide-react';
-import { PrestatarioDTO } from '../../types';
+import { Cliente } from '../../types/cobraya';
 import { useEffect } from 'react';
 
 const borrowerSchema = z.object({
-  dni: z.string().min(7, "El DNI debe tener al menos 7 números").regex(/^\d+$/, "Solo se permiten números"),
+  documento: z.string().min(5, "El número de identidad debe tener al menos 5 caracteres"),
   nombre: z.string().min(2, "El nombre es obligatorio"),
   apellido: z.string().min(2, "El apellido es obligatorio"),
   correo: z.string().email("El formato del email no es válido").or(z.literal('')),
@@ -23,7 +23,7 @@ const borrowerSchema = z.object({
 export type BorrowerFormData = z.infer<typeof borrowerSchema>;
 
 interface BorrowerFormProps {
-  initialData?: PrestatarioDTO;
+  initialData?: Cliente;
   onSubmit: (data: BorrowerFormData) => void;
   isLoading: boolean;
   submitLabel: string;
@@ -33,7 +33,7 @@ export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel }: 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<BorrowerFormData>({
     resolver: zodResolver(borrowerSchema),
     defaultValues: {
-      dni: '',
+      documento: '',
       nombre: '',
       apellido: '',
       correo: '',
@@ -51,18 +51,18 @@ export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel }: 
   useEffect(() => {
     if (initialData) {
       reset({
-        dni: initialData.dni.toString(),
+        documento: initialData.documento,
         nombre: initialData.nombre,
-        apellido: initialData.apellido,
+        apellido: initialData.apellido || '',
         correo: initialData.correo || '',
         telefono: initialData.telefono || '',
         domicilio: initialData.domicilio || '',
-        garanteNombre: initialData.garanteNombre || '',
-        garanteApellido: initialData.garanteApellido || '',
-        garanteDni: initialData.garanteDni || '',
-        garanteTelefono: initialData.garanteTelefono || '',
-        garanteCorreo: initialData.garanteCorreo || '',
-        garanteDomicilio: initialData.garanteDomicilio || '',
+        garanteNombre: initialData.garante?.nombre || '',
+        garanteApellido: initialData.garante?.apellido || '',
+        garanteDni: initialData.garante?.documento || '',
+        garanteTelefono: initialData.garante?.telefono || '',
+        garanteCorreo: '',
+        garanteDomicilio: initialData.garante?.domicilio || '',
       });
     }
   }, [initialData, reset]);
@@ -75,15 +75,15 @@ export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel }: 
         <h3 className="text-lg font-semibold text-main mb-4 border-b border-border pb-2">Datos Personales</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-muted mb-1">DNI *</label>
+            <label className="block text-sm font-medium text-muted mb-1">Identidad / RTN *</label>
             <input
               type="text"
-              {...register('dni')}
-              disabled={!!initialData} // DNI cannot be changed on edit
-              className={`w-full bg-surface/50 border rounded-lg px-4 py-2.5 text-main placeholder-muted focus:outline-none transition-colors ${errors.dni ? 'border-red-500 focus:border-red-500' : 'border-border focus:border-primary-500'} ${initialData ? 'opacity-50 cursor-not-allowed' : ''}`}
-              placeholder="12345678"
+              {...register('documento')}
+              disabled={!!initialData} // No se puede cambiar el documento al editar
+              className={`w-full bg-surface/50 border rounded-lg px-4 py-2.5 text-main placeholder-muted focus:outline-none transition-colors ${errors.documento ? 'border-red-500 focus:border-red-500' : 'border-border focus:border-primary-500'} ${initialData ? 'opacity-50 cursor-not-allowed' : ''}`}
+              placeholder="0801-1990-12345"
             />
-            {errors.dni && <p className="text-xs text-red-400 mt-1">{errors.dni.message}</p>}
+            {errors.documento && <p className="text-xs text-red-400 mt-1">{errors.documento.message}</p>}
           </div>
           
           <div className="grid grid-cols-2 gap-4">

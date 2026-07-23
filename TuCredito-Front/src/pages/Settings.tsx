@@ -6,102 +6,74 @@ import { useTheme } from '../hooks/useTheme';
 import { updateProfile } from '../services/authService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import api from '../lib/axios';
+
+interface ProfileFormData {
+    nombre: string;
+}
+
+interface PasswordFormData {
+    nuevaContrasenia: string;
+    confirmarContrasenia: string;
+}
 
 export function Settings() {
     const { theme, toggleTheme } = useTheme();
-    const { user, login, token } = useAuth();
+    const { user, refreshUser } = useAuth();
     const { addToast } = useToast();
-    
+
     const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
-    const [showCurrent, setShowCurrent] = useState(false);
     const [showNew, setShowNew] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
 
     const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
-    const [profileError, setProfileError] = useState('');
 
-    const { register, handleSubmit, formState: { errors }, reset, watch } = useForm({
-        defaultValues: {
-            contraseniaActual: '',
-            nuevaContrasenia: '',
-            confirmarContrasenia: ''
-        }
+    const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<PasswordFormData>({
+        defaultValues: { nuevaContrasenia: '', confirmarContrasenia: '' }
     });
 
-    const { 
-        register: registerProfile, 
-        handleSubmit: handleSubmitProfile, 
+    const {
+        register: registerProfile,
+        handleSubmit: handleSubmitProfile,
         formState: { errors: errorsProfile },
         reset: resetProfile
-    } = useForm({
-        defaultValues: {
-            nombre: user?.nombre || '',
-            apellido: user?.apellido || '',
-            email: user?.correo || '',
-            usuario: user?.usuario || ''
-        }
+    } = useForm<ProfileFormData>({
+        defaultValues: { nombre: user?.nombre || '' }
     });
 
     useEffect(() => {
-        if (user) {
-            resetProfile({
-                nombre: user.nombre,
-                apellido: user.apellido,
-                email: user.correo,
-                usuario: user.usuario
-            });
-        }
+        if (user) resetProfile({ nombre: user.nombre });
     }, [user, resetProfile]);
 
     const profileMutation = useMutation({
-        mutationFn: async (data: any) => {
-            await updateProfile(data);
-            const response = await api.get('/lenders/me');
-            return response.data;
-        },
-        onSuccess: (updatedUser) => {
+        mutationFn: (data: ProfileFormData) => updateProfile(user!.id, { nombre: data.nombre }),
+        onSuccess: async () => {
             addToast('Perfil actualizado correctamente', 'success');
-            if (token) {
-                login({ token, prestamista: updatedUser });
-            }
+            await refreshUser();
             setIsEditProfileOpen(false);
-            setProfileError('');
         },
         onError: (error: any) => {
-            const msg = error.response?.data?.message || 'Error al actualizar el perfil';
-            setProfileError(msg);
-            addToast(msg, 'error');
+            addToast(error.message || 'Error al actualizar el perfil', 'error');
         }
     });
 
-    const onSubmitProfile = (data: any) => {
-        profileMutation.mutate(data);
-    };
-
-    const mutation = useMutation({
-        mutationFn: updateProfile,
+    const passwordMutation = useMutation({
+        mutationFn: (data: PasswordFormData) => updateProfile(user!.id, { nuevaContrasenia: data.nuevaContrasenia }),
         onSuccess: () => {
             addToast('Contraseña actualizada correctamente', 'success');
             reset();
             setIsChangePasswordOpen(false);
         },
         onError: (error: any) => {
-            addToast((error as any)?.response?.data?.message || "Error al actualizar la contraseña", 'error');
+            addToast(error.message || 'Error al actualizar la contraseña', 'error');
         }
     });
 
-    const onSubmitPassword = (data: any) => {
-        if (data.nuevaContrasenia !== data.confirmarContrasenia) {
-            return; 
-        }
-        mutation.mutate({
-            contraseniaActual: data.contraseniaActual,
-            nuevaContrasenia: data.nuevaContrasenia
-        });
+    const onSubmitPassword = (data: PasswordFormData) => {
+        if (data.nuevaContrasenia !== data.confirmarContrasenia) return;
+        passwordMutation.mutate(data);
     };
 
-    const newPassword = watch("nuevaContrasenia");
+    const newPassword = watch('nuevaContrasenia');
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -121,9 +93,9 @@ export function Settings() {
            <div className="flex items-center justify-between py-2">
               <div>
                 <p className="font-medium text-main">Información Personal</p>
-                <p className="text-sm text-muted">Actualiza tus datos personales</p>
+                <p className="text-sm text-muted">Actualiza tu nombre</p>
               </div>
-              <button 
+              <button
                 onClick={() => setIsEditProfileOpen(true)}
                 className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-surfaceHighlight transition-colors text-main"
               >
@@ -132,74 +104,34 @@ export function Settings() {
            </div>
 
            {isEditProfileOpen && (
-               <form onSubmit={handleSubmitProfile(onSubmitProfile)} className="mt-4 space-y-4 p-4 bg-surfaceHighlight/30 rounded-xl border border-border animate-in fade-in slide-in-from-top-2 relative">
-                   <button 
-                       type="button" 
+               <form onSubmit={handleSubmitProfile((data) => profileMutation.mutate(data))} className="mt-4 space-y-4 p-4 bg-surfaceHighlight/30 rounded-xl border border-border animate-in fade-in slide-in-from-top-2 relative">
+                   <button
+                       type="button"
                        onClick={() => setIsEditProfileOpen(false)}
                        className="absolute top-2 right-2 text-muted hover:text-main p-1"
                    >
                        <X className="h-4 w-4" />
                    </button>
-                   
-                   <div className="grid grid-cols-2 gap-4">
-                       <div>
-                           <label className="block text-sm font-medium text-muted mb-1">Nombre</label>
-                           <input 
-                               {...registerProfile("nombre", { required: "El nombre es requerido", maxLength: { value: 60, message: "Máximo 60 caracteres" } })}
-                               className="w-full bg-surface/50 border border-border rounded-lg px-4 py-2 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                           />
-                           {errorsProfile.nombre && <span className="text-xs text-red-400 mt-1">{errorsProfile.nombre.message as string}</span>}
-                       </div>
-                       <div>
-                           <label className="block text-sm font-medium text-muted mb-1">Apellido</label>
-                           <input 
-                               {...registerProfile("apellido", { required: "El apellido es requerido", maxLength: { value: 60, message: "Máximo 60 caracteres" } })}
-                               className="w-full bg-surface/50 border border-border rounded-lg px-4 py-2 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                           />
-                           {errorsProfile.apellido && <span className="text-xs text-red-400 mt-1">{errorsProfile.apellido.message as string}</span>}
-                       </div>
-                   </div>
 
                    <div>
-                       <label className="block text-sm font-medium text-muted mb-1">Correo Electrónico</label>
-                       <input 
-                           type="email"
-                           {...registerProfile("email", { 
-                               required: "El correo es requerido",
-                               pattern: { value: /^\S+@\S+$/i, message: "Correo inválido" },
-                               maxLength: { value: 50, message: "Máximo 50 caracteres" }
-                           })}
+                       <label className="block text-sm font-medium text-muted mb-1">Nombre</label>
+                       <input
+                           {...registerProfile('nombre', { required: 'El nombre es requerido', maxLength: { value: 60, message: 'Máximo 60 caracteres' } })}
                            className="w-full bg-surface/50 border border-border rounded-lg px-4 py-2 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
                        />
-                       {errorsProfile.email && <span className="text-xs text-red-400 mt-1">{errorsProfile.email.message as string}</span>}
+                       {errorsProfile.nombre && <span className="text-xs text-red-400 mt-1">{errorsProfile.nombre.message as string}</span>}
                    </div>
-
-                   <div>
-                       <label className="block text-sm font-medium text-muted mb-1">Usuario</label>
-                       <input 
-                           {...registerProfile("usuario", { required: "El usuario es requerido", maxLength: { value: 10, message: "Máximo 10 caracteres" } })}
-                           className="w-full bg-surface/50 border border-border rounded-lg px-4 py-2 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                       />
-                       {errorsProfile.usuario && <span className="text-xs text-red-400 mt-1">{errorsProfile.usuario.message as string}</span>}
-                   </div>
-
-                   {profileError && (
-                       <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">
-                           <AlertCircle className="h-4 w-4" />
-                           <span>{profileError}</span>
-                       </div>
-                   )}
 
                    <div className="flex justify-end pt-2 gap-2">
-                       <button 
+                       <button
                            type="button"
                            onClick={() => setIsEditProfileOpen(false)}
                            className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-surfaceHighlight transition-colors text-main"
                        >
                            Cancelar
                        </button>
-                       <button 
-                           type="submit" 
+                       <button
+                           type="submit"
                            disabled={profileMutation.isPending}
                            className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20 flex items-center gap-2 disabled:opacity-50"
                        >
@@ -225,7 +157,7 @@ export function Settings() {
                 <p className="font-medium text-main">Tema</p>
                 <p className="text-sm text-muted">Alternar entre modo claro y oscuro</p>
               </div>
-              <button 
+              <button
                 onClick={toggleTheme}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm hover:bg-surfaceHighlight transition-colors text-main"
               >
@@ -235,8 +167,6 @@ export function Settings() {
            </div>
         </div>
       </div>
-
-{/* Notificaciones eliminadas */}
 
       <div className="glass-panel rounded-xl border border-border overflow-hidden">
         <div className="p-6 border-b border-border">
@@ -251,7 +181,7 @@ export function Settings() {
                 <p className="font-medium text-main">Cambiar Contraseña</p>
                 <p className="text-sm text-muted">Se recomienda cambiarla cada 3 meses</p>
               </div>
-              <button 
+              <button
                 onClick={() => setIsChangePasswordOpen(!isChangePasswordOpen)}
                 className="px-4 py-2 rounded-lg border border-border text-sm hover:bg-surfaceHighlight transition-colors text-main"
               >
@@ -262,33 +192,14 @@ export function Settings() {
            {isChangePasswordOpen && (
                <form onSubmit={handleSubmit(onSubmitPassword)} className="mt-4 space-y-4 p-4 bg-surfaceHighlight/30 rounded-xl border border-border animate-in fade-in slide-in-from-top-2">
                    <div>
-                       <label className="block text-sm font-medium text-muted mb-1">Contraseña Actual</label>
-                       <div className="relative">
-                           <input 
-                               type={showCurrent ? "text" : "password"}
-                               {...register("contraseniaActual", { required: "La contraseña actual es requerida" })}
-                               className="w-full bg-surface/50 border border-border rounded-lg px-4 py-2 pr-10 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                           />
-                           <button
-                               type="button"
-                               onClick={() => setShowCurrent(!showCurrent)}
-                               className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted hover:text-main transition-colors"
-                           >
-                               {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                           </button>
-                       </div>
-                       {errors.contraseniaActual && <span className="text-xs text-red-400 mt-1">{errors.contraseniaActual.message as string}</span>}
-                   </div>
-                   
-                   <div>
                        <label className="block text-sm font-medium text-muted mb-1">Nueva Contraseña</label>
                        <div className="relative">
-                           <input 
-                               type={showNew ? "text" : "password"}
-                               {...register("nuevaContrasenia", { 
-                                   required: "La nueva contraseña es requerida",
-                                   minLength: { value: 8, message: "Mínimo 8 caracteres" },
-                                   pattern: { value: /^(?=.*[0-9]).*$/, message: "Debe contener al menos un número" }
+                           <input
+                               type={showNew ? 'text' : 'password'}
+                               {...register('nuevaContrasenia', {
+                                   required: 'La nueva contraseña es requerida',
+                                   minLength: { value: 8, message: 'Mínimo 8 caracteres' },
+                                   pattern: { value: /^(?=.*[0-9]).*$/, message: 'Debe contener al menos un número' }
                                })}
                                className="w-full bg-surface/50 border border-border rounded-lg px-4 py-2 pr-10 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
                            />
@@ -306,11 +217,11 @@ export function Settings() {
                    <div>
                        <label className="block text-sm font-medium text-muted mb-1">Confirmar Nueva Contraseña</label>
                        <div className="relative">
-                           <input 
-                               type={showConfirm ? "text" : "password"}
-                               {...register("confirmarContrasenia", { 
-                                   required: "Confirma tu nueva contraseña",
-                                   validate: value => value === newPassword || "Las contraseñas no coinciden"
+                           <input
+                               type={showConfirm ? 'text' : 'password'}
+                               {...register('confirmarContrasenia', {
+                                   required: 'Confirma tu nueva contraseña',
+                                   validate: value => value === newPassword || 'Las contraseñas no coinciden'
                                })}
                                className="w-full bg-surface/50 border border-border rounded-lg px-4 py-2 pr-10 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
                            />
@@ -325,20 +236,20 @@ export function Settings() {
                        {errors.confirmarContrasenia && <span className="text-xs text-red-400 mt-1">{errors.confirmarContrasenia.message as string}</span>}
                    </div>
 
-                   {mutation.isError && (
+                   {passwordMutation.isError && (
                        <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">
                            <AlertCircle className="h-4 w-4" />
-                           <span>{(mutation.error as any)?.response?.data?.message || "Error al actualizar la contraseña"}</span>
+                           <span>Error al actualizar la contraseña</span>
                        </div>
                    )}
 
                    <div className="flex justify-end pt-2">
-                       <button 
-                           type="submit" 
-                           disabled={mutation.isPending}
+                       <button
+                           type="submit"
+                           disabled={passwordMutation.isPending}
                            className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20 flex items-center gap-2 disabled:opacity-50"
                        >
-                           {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                           {passwordMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                            Guardar Cambios
                        </button>
                    </div>

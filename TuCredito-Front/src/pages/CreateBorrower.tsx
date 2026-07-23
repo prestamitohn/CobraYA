@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createBorrower } from '../services/borrowerService';
-import { PrestatarioDTO } from '../types';
 import { ArrowLeft } from 'lucide-react';
 import { BorrowerForm, BorrowerFormData } from '../components/borrowers/BorrowerForm';
 import { useToast } from '../context/ToastContext';
@@ -14,27 +13,28 @@ export function CreateBorrower() {
   const onSubmit = async (data: BorrowerFormData) => {
     setIsLoading(true);
     try {
-      const payload: PrestatarioDTO = {
-        ...data,
-        dni: Number(data.dni),
-        esActivo: true,
-        // Optional fields
-        telefono: data.telefono || '',
-        domicilio: data.domicilio || '',
-        correo: data.correo || '',
-        garanteNombre: data.garanteNombre || undefined,
-        garanteApellido: data.garanteApellido || undefined,
-        garanteDni: data.garanteDni || undefined,
-        garanteTelefono: data.garanteTelefono || undefined,
-        garanteCorreo: data.garanteCorreo || undefined,
-        garanteDomicilio: data.garanteDomicilio || undefined,
-      };
-      
-      await createBorrower(payload);
+      await createBorrower({
+        documento: data.documento,
+        nombre: data.nombre,
+        apellido: data.apellido,
+        telefono: data.telefono || undefined,
+        domicilio: data.domicilio || undefined,
+        correo: data.correo || undefined,
+        garante: data.garanteNombre
+          ? {
+              nombre: data.garanteNombre,
+              apellido: data.garanteApellido || undefined,
+              documento: data.garanteDni || undefined,
+              telefono: data.garanteTelefono || undefined,
+              correo: data.garanteCorreo || undefined,
+              domicilio: data.garanteDomicilio || undefined,
+            }
+          : undefined,
+      });
       addToast('Cliente registrado correctamente', 'success');
       navigate('/borrowers');
     } catch (err: any) {
-      addToast(err.response?.data?.message || 'Error al registrar el cliente', 'error');
+      addToast(err.message || 'Error al registrar el cliente', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -43,7 +43,7 @@ export function CreateBorrower() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button 
+        <button
           onClick={() => navigate('/borrowers')}
           className="p-2 hover:bg-surfaceHighlight rounded-lg transition-colors text-muted hover:text-main"
         >
@@ -56,10 +56,10 @@ export function CreateBorrower() {
       </div>
 
       <div className="glass-panel p-6 rounded-xl border border-border">
-        <BorrowerForm 
-          onSubmit={onSubmit} 
-          isLoading={isLoading} 
-          submitLabel="Guardar Cliente" 
+        <BorrowerForm
+          onSubmit={onSubmit}
+          isLoading={isLoading}
+          submitLabel="Guardar Cliente"
         />
       </div>
     </div>

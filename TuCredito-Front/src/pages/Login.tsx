@@ -1,26 +1,28 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useAuth } from '../context/AuthContext';
-import { login as loginService } from '../services/authService';
+import { signIn } from '../services/authService';
 import { useNavigate, Link } from 'react-router-dom';
 import { Loader2, Eye, EyeOff, ShieldCheck, PieChart } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
+interface LoginFormData {
+  correo: string;
+  contrasenia: string;
+}
+
 export function Login() {
-  const { login } = useAuth();
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { register, handleSubmit } = useForm();
+  const { register, handleSubmit } = useForm<LoginFormData>();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     setError('');
     try {
-      const responseData = await loginService(data);
-      login(responseData);
+      await signIn(data.correo, data.contrasenia);
       addToast('Sesión iniciada correctamente', 'success');
       navigate('/');
     } catch (err) {
@@ -54,9 +56,9 @@ export function Login() {
         <div className="relative z-20 flex flex-col justify-between h-full p-16 text-white">
           <div className="flex items-center gap-3">
              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-primary-500 to-accent-pink flex items-center justify-center shadow-lg shadow-primary-500/20">
-                <span className="font-bold text-white text-xl">T</span>
+                <span className="font-bold text-white text-xl">C</span>
              </div>
-             <span className="text-2xl font-bold tracking-tight">Tu Crédito</span>
+             <span className="text-2xl font-bold tracking-tight">CobraYA</span>
           </div>
 
           <div className="space-y-8 max-w-xl">
@@ -79,7 +81,7 @@ export function Login() {
           </div>
 
           <div className="text-sm text-gray-500">
-            © 2026 Tu Crédito Inc. Todos los derechos reservados.
+            © 2026 CobraYA. Todos los derechos reservados.
           </div>
         </div>
       </div>
@@ -93,7 +95,7 @@ export function Login() {
         <div className="w-full max-w-[400px] space-y-8 relative z-10 bg-surface/50 lg:bg-transparent p-6 lg:p-0 rounded-2xl lg:rounded-none border border-border/50 lg:border-none backdrop-blur-md lg:backdrop-blur-none shadow-xl lg:shadow-none">
           <div className="text-center lg:text-left space-y-2">
             <div className="lg:hidden mx-auto h-12 w-12 rounded-xl bg-gradient-to-tr from-primary-600 to-accent-pink flex items-center justify-center mb-6 shadow-lg shadow-primary-500/20">
-               <span className="font-bold text-white text-2xl">T</span>
+               <span className="font-bold text-white text-2xl">C</span>
             </div>
             <h2 className="text-3xl font-bold tracking-tight text-main">¡Hola de nuevo! 👋</h2>
             <p className="text-muted text-base">Ingresa tus credenciales para acceder al panel.</p>
@@ -102,13 +104,14 @@ export function Login() {
           <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
             <div className="space-y-5">
               <div className="space-y-1.5">
-                <label htmlFor="usuario" className="block text-sm font-medium text-main ml-1">Usuario</label>
+                <label htmlFor="correo" className="block text-sm font-medium text-main ml-1">Correo</label>
                 <input
-                  id="usuario"
-                  {...register('usuario')}
+                  id="correo"
+                  type="email"
+                  {...register('correo')}
                   required
                   className="block w-full rounded-xl border border-border bg-surface/50 px-4 py-3.5 text-main placeholder-muted/70 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all duration-200 outline-none"
-                  placeholder="Ej. admin"
+                  placeholder="tu@negocio.hn"
                 />
               </div>
               <div className="space-y-1.5">

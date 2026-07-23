@@ -1,27 +1,42 @@
-import api from '../lib/axios';
-import { Cuota, CuotaInputDTO } from '../types';
+import { supabase } from '../lib/supabase';
+import { Cuota, EstadoCuota } from '../types/cobraya';
 
-export const getInstallments = async (filters: { 
-  estado?: number; 
-  mesVto?: number; 
-  prestatario?: string;
-  idPrestamo?: number;
-}): Promise<Cuota[]> => {
-  const params = new URLSearchParams();
-  if (filters.estado) params.append('estado', filters.estado.toString());
-  if (filters.mesVto) params.append('mesVto', filters.mesVto.toString());
-  if (filters.prestatario) params.append('prestatario', filters.prestatario);
-  if (filters.idPrestamo) params.append('idPrestamo', filters.idPrestamo.toString());
+interface CuotaRow {
+  id: string;
+  prestamo_id: string;
+  nro_cuota: number;
+  monto: number;
+  interes: number | null;
+  capital: number | null;
+  saldo_pendiente: number | null;
+  fecha_vto: string;
+  estado: EstadoCuota;
+}
 
-  const response = await api.get(`/installments/filter?${params.toString()}`);
-  return response.data;
-};
+function mapCuota(row: CuotaRow): Cuota {
+  return {
+    id: row.id,
+    prestamoId: row.prestamo_id,
+    nroCuota: row.nro_cuota,
+    monto: row.monto,
+    interes: row.interes,
+    capital: row.capital,
+    saldoPendiente: row.saldo_pendiente,
+    fechaVto: row.fecha_vto,
+    estado: row.estado,
+  };
+}
 
-export const getInstallmentById = async (id: number): Promise<Cuota> => {
-  const response = await api.get(`/installments/${id}`);
-  return response.data;
-};
+export async function getInstallments(filters: { prestamoId?: string; estado?: EstadoCuota }): Promise<Cuota[]> {
+  let query = supabase
+    .from('cuotas')
+    .select('id, prestamo_id, nro_cuota, monto, interes, capital, saldo_pendiente, fecha_vto, estado')
+    .order('nro_cuota');
 
-export const addInstallment = async (data: CuotaInputDTO): Promise<void> => {
-  await api.post('/installments', data);
-};
+  if (filters.prestamoId) query = query.eq('prestamo_id', filters.prestamoId);
+  if (filters.estado) query = query.eq('estado', filters.estado);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((row) => mapCuota(row as CuotaRow));
+}

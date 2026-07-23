@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X } from 'lucide-react';
+import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
@@ -18,7 +18,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
-  const { logout, user } = useAuth();
+  const { logout, user, esSuperadmin } = useAuth();
 
   return (
     <>
@@ -38,10 +38,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         <div className="flex h-20 items-center justify-between px-6">
           <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-primary-600 to-accent-pink flex items-center justify-center">
-                  <span className="font-bold text-white text-lg">T</span>
+                  <span className="font-bold text-white text-lg">C</span>
               </div>
               <div>
-                  <h1 className="text-xl font-bold tracking-tight text-main">Tu Crédito</h1>
+                  <h1 className="text-xl font-bold tracking-tight text-main">CobraYA</h1>
               </div>
           </div>
           {/* Close button mobile */}
@@ -77,6 +77,23 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               )}
             </NavLink>
           ))}
+          {esSuperadmin && (
+            <NavLink
+              to="/admin"
+              onClick={() => onClose?.()}
+              className={({ isActive }) =>
+                cn(
+                  "group flex items-center space-x-3 rounded-xl px-4 py-3.5 text-sm font-medium transition-all duration-200 border border-dashed",
+                  isActive
+                    ? "bg-amber-500/10 text-amber-500 border-amber-500/40"
+                    : "text-amber-500/80 border-amber-500/20 hover:bg-amber-500/10 hover:text-amber-400"
+                )
+              }
+            >
+              <ShieldAlert className="h-5 w-5" />
+              <span>Panel Admin</span>
+            </NavLink>
+          )}
         </nav>
 
         <div className="p-4 mt-auto">
@@ -86,7 +103,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                       {user?.nombre?.charAt(0) || 'U'}
                   </div>
                   <div className="overflow-hidden">
-                      <p className="text-sm font-semibold text-main truncate">{user?.nombre} {user?.apellido}</p>
+                      <p className="text-sm font-semibold text-main truncate">{user?.nombre}</p>
                       <p className="text-xs text-muted truncate">{user?.correo}</p>
                   </div>
               </div>

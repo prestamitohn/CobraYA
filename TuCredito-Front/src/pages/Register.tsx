@@ -1,27 +1,39 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import api from '../lib/axios';
+import { signUpOwner } from '../services/authService';
 import { useNavigate, Link } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
+interface RegisterFormData {
+  nombreNegocio: string;
+  nombre: string;
+  correo: string;
+  contrasenia: string;
+}
+
 export function Register() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormData>();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     setError('');
     try {
-      await api.post('/lenders/register', data);
+      await signUpOwner({
+        nombreNegocio: data.nombreNegocio,
+        nombreUsuario: data.nombre,
+        correo: data.correo,
+        password: data.contrasenia,
+      });
       addToast('Registro exitoso. Por favor inicia sesión', 'success');
       navigate('/login');
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Error al registrar el usuario';
+      const msg = err.message || 'Error al registrar el usuario';
       setError(msg);
       addToast(msg, 'error');
     } finally {
@@ -40,35 +52,34 @@ export function Register() {
       <div className="w-full max-w-md space-y-8 glass-panel p-8 relative z-10">
         <div className="text-center">
           <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-tr from-primary-600 to-accent-pink flex items-center justify-center mb-4 shadow-lg shadow-primary-500/20">
-            <span className="font-bold text-white text-3xl">T</span>
+            <span className="font-bold text-white text-3xl">C</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-main">Tu Crédito</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-main">CobraYA</h1>
           <p className="mt-2 text-sm text-muted">Crea una cuenta para comenzar</p>
         </div>
         
         <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                <label htmlFor="nombre" className="block text-sm font-medium text-muted">Nombre</label>
-                <input
-                    id="nombre"
-                    {...register('nombre', { required: 'El nombre es obligatorio' })}
-                    className="mt-1 block w-full rounded-xl border border-border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-200"
-                    placeholder="Juan"
-                />
-                 {errors.nombre && <p className="text-xs text-red-400 mt-1">{errors.nombre.message as string}</p>}
-                </div>
-                <div>
-                <label htmlFor="apellido" className="block text-sm font-medium text-muted">Apellido</label>
-                <input
-                    id="apellido"
-                    {...register('apellido', { required: 'El apellido es obligatorio' })}
-                    className="mt-1 block w-full rounded-xl border border-border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-200"
-                    placeholder="Perez"
-                />
-                 {errors.apellido && <p className="text-xs text-red-400 mt-1">{errors.apellido.message as string}</p>}
-                </div>
+            <div>
+              <label htmlFor="nombreNegocio" className="block text-sm font-medium text-muted">Nombre del negocio</label>
+              <input
+                id="nombreNegocio"
+                {...register('nombreNegocio', { required: 'El nombre del negocio es obligatorio' })}
+                className="mt-1 block w-full rounded-xl border border-border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-200"
+                placeholder="Ej. Préstamos Don Juan"
+              />
+              {errors.nombreNegocio && <p className="text-xs text-red-400 mt-1">{errors.nombreNegocio.message as string}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="nombre" className="block text-sm font-medium text-muted">Tu nombre</label>
+              <input
+                  id="nombre"
+                  {...register('nombre', { required: 'El nombre es obligatorio' })}
+                  className="mt-1 block w-full rounded-xl border border-border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-200"
+                  placeholder="Juan Pérez"
+              />
+              {errors.nombre && <p className="text-xs text-red-400 mt-1">{errors.nombre.message as string}</p>}
             </div>
 
             <div>
@@ -81,17 +92,6 @@ export function Register() {
                 placeholder="juan@ejemplo.com"
               />
               {errors.correo && <p className="text-xs text-red-400 mt-1">{errors.correo.message as string}</p>}
-            </div>
-
-            <div>
-              <label htmlFor="usuario" className="block text-sm font-medium text-muted">Usuario</label>
-              <input
-                id="usuario"
-                {...register('usuario', { required: 'El usuario es obligatorio', maxLength: { value: 10, message: "Máximo 10 caracteres" } })}
-                className="mt-1 block w-full rounded-xl border border-border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-200"
-                placeholder="juanperez"
-              />
-               {errors.usuario && <p className="text-xs text-red-400 mt-1">{errors.usuario.message as string}</p>}
             </div>
             <div>
               <label htmlFor="contrasenia" className="block text-sm font-medium text-muted">Contraseña</label>

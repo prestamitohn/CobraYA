@@ -140,7 +140,7 @@ export const exportPaymentVoucherPDF = (payment: PagoOutputDTO) => {
   doc.setFontSize(16);
   doc.text('COMPROBANTE DE PAGO', pageWidth / 2, 18, { align: 'center' });
   doc.setFontSize(10);
-  doc.text('Tu Credito', pageWidth / 2, 25, { align: 'center' });
+  doc.text('CobraYA', pageWidth / 2, 25, { align: 'center' });
 
   // Voucher Info
   doc.setTextColor(0, 0, 0);

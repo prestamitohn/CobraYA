@@ -79,7 +79,7 @@ export function Dashboard() {
         <Link to="/loans?view=history" className="block h-full transition-transform hover:scale-[1.02] cursor-pointer">
             <KPIWidget
             title="Total Prestado Historico"
-            value={kpis ? `$${kpis.totalPrestadoHistorico.toLocaleString()}` : '...'}
+            value={kpis ? formatCurrency(kpis.totalPrestadoHistorico) : '...'}
             icon={DollarSign}
             trend="+12.5%"
             trendUp={true}
@@ -118,7 +118,7 @@ export function Dashboard() {
         <Link to="/loans?status=1" className="block h-full transition-transform hover:scale-[1.02] cursor-pointer">
             <KPIWidget
             title="Capital Pendiente"
-            value={kpis ? `$${kpis.capitalPendiente.toLocaleString()}` : '...'}
+            value={kpis ? formatCurrency(kpis.capitalPendiente) : '...'}
             icon={Users}
             iconColor="bg-blue-500/10 text-blue-400"
             description="Monto total de dinero que aún está pendiente de cobro (Capital + Intereses por vencer)."
@@ -160,7 +160,7 @@ export function Dashboard() {
                                 axisLine={false} 
                                 tickLine={false} 
                                 tick={{ fill: axisColor, fontSize: 12 }} 
-                                tickFormatter={(value) => `$${value/1000}k`}
+                                tickFormatter={(value) => `L${value/1000}k`}
                             />
                             <Tooltip 
                                 contentStyle={{ 
@@ -169,7 +169,7 @@ export function Dashboard() {
                                     color: THEME_COLORS.text,
                                     borderRadius: '8px'
                                 }}
-                                formatter={(value: any) => [`$${Number(value).toLocaleString()}`, 'Monto Estimado']}
+                                formatter={(value: any) => [formatCurrency(Number(value)), 'Monto Estimado']}
                                 labelStyle={{ color: THEME_COLORS.text }}
                             />
                             <Bar 

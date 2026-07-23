@@ -3,22 +3,21 @@ import { useQuery } from '@tanstack/react-query';
 import { getBorrowers } from '../../services/borrowerService';
 import { getLoansByFilter } from '../../services/loanService';
 import { getInstallments } from '../../services/installmentService';
-import { PrestatarioDTO, PrestamoDTO, Cuota } from '../../types';
-import { InstallmentStatus } from '../../types/enums';
+import { Cliente, Prestamo, Cuota } from '../../types/cobraya';
 import { X, Search, User, FileText, ChevronRight, CreditCard, ArrowLeft } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 interface NewPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onInstallmentSelect: (installment: Cuota, currency: string) => void;
+  onInstallmentSelect: (installment: Cuota) => void;
 }
 
 export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPaymentModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBorrower, setSelectedBorrower] = useState<PrestatarioDTO | null>(null);
-  const [selectedLoan, setSelectedLoan] = useState<PrestamoDTO | null>(null);
+  const [selectedBorrower, setSelectedBorrower] = useState<Cliente | null>(null);
+  const [selectedLoan, setSelectedLoan] = useState<Prestamo | null>(null);
 
   const { data: borrowers, isLoading: isLoadingBorrowers } = useQuery({
     queryKey: ['borrowers', searchTerm],
@@ -27,19 +26,18 @@ export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPay
   });
 
   const { data: loans, isLoading: isLoadingLoans } = useQuery({
-    queryKey: ['loans', selectedBorrower?.dni],
-    queryFn: () => getLoansByFilter({ nombre: selectedBorrower?.nombre }),
+    queryKey: ['loans', 'cliente', selectedBorrower?.id],
+    queryFn: () => getLoansByFilter({ clienteId: selectedBorrower?.id }),
     enabled: isOpen && step === 2 && !!selectedBorrower,
   });
 
   const { data: installments, isLoading: isLoadingInstallments } = useQuery({
-    queryKey: ['installments', selectedLoan?.idPrestamo],
-    queryFn: () => getInstallments({ idPrestamo: selectedLoan?.idPrestamo }),
+    queryKey: ['installments', selectedLoan?.id],
+    queryFn: () => getInstallments({ prestamoId: selectedLoan?.id }),
     enabled: isOpen && step === 3 && !!selectedLoan,
   });
 
-  const filteredLoans = loans?.filter(l => l.dniPrestatario === selectedBorrower?.dni);
-  const pendingInstallments = installments?.filter(i => i.idEstado !== InstallmentStatus.Paid && (i.saldoPendiente === undefined || i.saldoPendiente > 0));
+  const pendingInstallments = installments?.filter(i => i.estado !== 'saldada' && (i.saldoPendiente == null || i.saldoPendiente > 0));
 
   if (!isOpen) return null;
 
@@ -86,7 +84,7 @@ export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPay
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
                 <input
                   type="text"
-                  placeholder="Buscar cliente por nombre, apellido o DNI..."
+                  placeholder="Buscar cliente por nombre, apellido o identidad..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full bg-surfaceHighlight border border-border rounded-lg pl-10 pr-4 py-3 text-main focus:border-primary-500 focus:outline-none transition-colors"
@@ -102,7 +100,7 @@ export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPay
                 <div className="grid gap-2">
                   {borrowers?.map((borrower) => (
                     <button
-                      key={borrower.dni}
+                      key={borrower.id}
                       onClick={() => {
                         setSelectedBorrower(borrower);
                         setStep(2);
@@ -115,7 +113,7 @@ export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPay
                         </div>
                         <div>
                           <p className="font-medium text-main">{borrower.nombre} {borrower.apellido}</p>
-                          <p className="text-xs text-muted">DNI: {borrower.dni}</p>
+                          <p className="text-xs text-muted">Identidad: {borrower.documento}</p>
                         </div>
                       </div>
                       <ChevronRight className="h-5 w-5 text-muted group-hover:text-primary-400 transition-colors" />
@@ -136,17 +134,17 @@ export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPay
                 </div>
               </div>
 
-              <h3 className="text-sm font-medium text-muted uppercase tracking-wider">Préstamos Activos</h3>
+              <h3 className="text-sm font-medium text-muted uppercase tracking-wider">Préstamos</h3>
 
               {isLoadingLoans ? (
                 <div className="text-center py-8 text-muted">Cargando préstamos...</div>
-              ) : filteredLoans?.length === 0 ? (
+              ) : loans?.length === 0 ? (
                 <div className="text-center py-8 text-muted">Este cliente no tiene préstamos registrados.</div>
               ) : (
                 <div className="grid gap-2">
-                  {filteredLoans?.map((loan) => (
+                  {loans?.map((loan) => (
                     <button
-                      key={loan.idPrestamo}
+                      key={loan.id}
                       onClick={() => {
                         setSelectedLoan(loan);
                         setStep(3);
@@ -158,9 +156,9 @@ export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPay
                           <FileText className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="font-medium text-main">Préstamo #{loan.idPrestamo}</p>
+                          <p className="font-medium text-main">Préstamo</p>
                           <p className="text-xs text-muted">
-                            Monto: {formatCurrency(loan.montoOtorgado, loan.moneda)} • {formatDate(loan.fechaOtorgamiento)}
+                            Monto: {formatCurrency(loan.montoOtorgado)} • {formatDate(loan.fechaOtorgamiento)}
                           </p>
                         </div>
                       </div>
@@ -177,9 +175,9 @@ export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPay
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-center gap-3">
                 <FileText className="h-5 w-5 text-blue-400" />
                 <div>
-                  <p className="text-sm font-medium text-main">Préstamo #{selectedLoan.idPrestamo}</p>
+                  <p className="text-sm font-medium text-main">Préstamo seleccionado</p>
                   <p className="text-xs text-blue-400/80">
-                    {formatCurrency(selectedLoan.montoOtorgado, selectedLoan.moneda)} - {formatDate(selectedLoan.fechaOtorgamiento)}
+                    {formatCurrency(selectedLoan.montoOtorgado)} - {formatDate(selectedLoan.fechaOtorgamiento)}
                   </p>
                 </div>
               </div>
@@ -194,8 +192,8 @@ export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPay
                 <div className="grid gap-2">
                   {pendingInstallments?.map((installment) => (
                     <button
-                      key={installment.idCuota}
-                      onClick={() => onInstallmentSelect(installment, selectedLoan.moneda)}
+                      key={installment.id}
+                      onClick={() => onInstallmentSelect(installment)}
                       className="flex items-center justify-between p-3 rounded-lg border border-border bg-surfaceHighlight/50 hover:bg-surfaceHighlight hover:border-green-500/50 transition-all group text-left"
                     >
                       <div className="flex items-center gap-3">
@@ -205,12 +203,12 @@ export function NewPaymentModal({ isOpen, onClose, onInstallmentSelect }: NewPay
                         <div>
                           <p className="font-medium text-main">Cuota #{installment.nroCuota}</p>
                           <p className="text-xs text-muted">
-                            Vence: {formatDate(installment.fecVto)}
+                            Vence: {formatDate(installment.fechaVto)}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-green-400">{formatCurrency(installment.saldoPendiente || installment.monto)}</p>
+                        <p className="font-bold text-green-400">{formatCurrency(installment.saldoPendiente ?? installment.monto)}</p>
                         <p className="text-xs text-muted">Seleccionar para pagar</p>
                       </div>
                     </button>

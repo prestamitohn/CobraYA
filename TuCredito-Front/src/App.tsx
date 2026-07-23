@@ -15,16 +15,63 @@ import { BorrowerDetails } from './pages/BorrowerDetails';
 import { Payments } from './pages/Payments';
 import { Calculator } from './pages/Calculator';
 import { Settings } from './pages/Settings';
+import { Admin } from './pages/Admin';
 import { NotFound } from './pages/NotFound';
 import { ToastProvider } from './context/ToastContext';
 
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading, tenantEstado, logout } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
+  if (tenantEstado && (tenantEstado.estadoSuscripcion === 'suspendida' || tenantEstado.estadoSuscripcion === 'cancelada')) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center bg-background gap-4 px-4 text-center">
+        <h1 className="text-2xl font-bold text-main">Cuenta {tenantEstado.estadoSuscripcion}</h1>
+        <p className="text-muted max-w-md">
+          La cuenta de <strong>{tenantEstado.nombre}</strong> está {tenantEstado.estadoSuscripcion} y no tiene acceso al sistema.
+          Contactá al soporte de CobraYA para regularizar tu suscripción.
+        </p>
+        <button
+          onClick={logout}
+          className="mt-2 px-4 py-2 rounded-lg border border-border text-main hover:bg-surfaceHighlight transition-colors"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, esSuperadmin } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !esSuperadmin) {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -33,7 +80,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      
+
       <Route path="/" element={
         <ProtectedRoute>
           <Layout />
@@ -45,11 +92,12 @@ function AppRoutes() {
         <Route path="loans/:id" element={<LoanDetails />} />
         <Route path="borrowers" element={<Borrowers />} />
         <Route path="borrowers/create" element={<CreateBorrower />} />
-        <Route path="borrowers/edit/:dni" element={<EditBorrower />} />
-        <Route path="borrowers/:dni" element={<BorrowerDetails />} />
+        <Route path="borrowers/edit/:documento" element={<EditBorrower />} />
+        <Route path="borrowers/:documento" element={<BorrowerDetails />} />
         <Route path="payments" element={<Payments />} />
         <Route path="calculator" element={<Calculator />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="admin" element={<AdminRoute><Admin /></AdminRoute>} />
       </Route>
 
       <Route path="*" element={<NotFound />} />
