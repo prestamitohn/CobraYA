@@ -56,5 +56,5 @@ body {
 }
 
 .primary-gradient {
-  @apply bg-gradient-to-r from-primary-600 to-accent-purple hover:from-primary-500 hover:to-accent-pink transition-all duration-300;
+  @apply bg-gradient-to-r from-primary-600 to-accent-gold hover:from-primary-500 hover:to-accent-goldDark transition-all duration-300;
 }

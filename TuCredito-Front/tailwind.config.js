@@ -15,19 +15,19 @@ export default {
         main: 'rgb(var(--color-text-main) / <alpha-value>)',
         muted: 'rgb(var(--color-text-muted) / <alpha-value>)',
         primary: {
-          400: '#C084FC',
-          500: '#A855F7', // Violeta principal
-          600: '#9333EA',
-          glow: 'rgba(168, 85, 247, 0.5)' // Para efectos de brillo
+          400: '#34D399',
+          500: '#10B981', // Verde CobraYA (dinero, crecimiento, confianza)
+          600: '#059669',
+          glow: 'rgba(16, 185, 129, 0.5)' // Para efectos de brillo
         },
         secondary: {
-          400: '#34D399',
-          500: '#10B981', // Verde neón para dinero
-          glow: 'rgba(16, 185, 129, 0.5)'
+          400: '#FBBF24',
+          500: '#F59E0B', // Dorado CobraYA ("YA", energía, cobro)
+          glow: 'rgba(245, 158, 11, 0.5)'
         },
         accent: {
-          pink: '#F472B6',
-          purple: '#8B5CF6'
+          gold: '#F59E0B',
+          goldDark: '#D97706'
         }
       },
       fontFamily: {

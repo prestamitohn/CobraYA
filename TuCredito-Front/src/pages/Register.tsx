@@ -46,12 +46,12 @@ export function Register() {
       {/* Background Gradients */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-500/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-pink/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-gold/10 rounded-full blur-[120px]" />
       </div>
 
       <div className="w-full max-w-md space-y-8 glass-panel p-8 relative z-10">
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-tr from-primary-600 to-accent-pink flex items-center justify-center mb-4 shadow-lg shadow-primary-500/20">
+          <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-tr from-primary-600 to-accent-gold flex items-center justify-center mb-4 shadow-lg shadow-primary-500/20">
             <span className="font-bold text-white text-3xl">C</span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-main">CobraYA</h1>
@@ -125,7 +125,7 @@ export function Register() {
           <button
             type="submit"
             disabled={isLoading}
-            className="group relative flex w-full justify-center rounded-xl bg-gradient-to-r from-primary-600 to-accent-pink px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-500/25 transition-all duration-200 hover:shadow-primary-500/40 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50"
+            className="group relative flex w-full justify-center rounded-xl bg-gradient-to-r from-primary-600 to-accent-gold px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-500/25 transition-all duration-200 hover:shadow-primary-500/40 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50"
           >
             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Registrarse'}
           </button>

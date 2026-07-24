@@ -195,7 +195,7 @@ export function Borrowers() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
-                    isDelinquent ? 'bg-gradient-to-br from-red-500 to-red-600' : 'bg-gradient-to-br from-primary-500 to-accent-purple'
+                    isDelinquent ? 'bg-gradient-to-br from-red-500 to-red-600' : 'bg-gradient-to-br from-primary-500 to-accent-gold'
                   }`}>
                     {borrower.nombre?.[0]}{borrower.apellido?.[0]}
                   </div>

@@ -37,7 +37,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       )}>
         <div className="flex h-20 items-center justify-between px-6">
           <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-primary-600 to-accent-pink flex items-center justify-center">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-primary-600 to-accent-gold flex items-center justify-center">
                   <span className="font-bold text-white text-lg">C</span>
               </div>
               <div>

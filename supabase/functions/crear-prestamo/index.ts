@@ -13,6 +13,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { calcularSimulacion, type FrecuenciaCobro, type SistemaAmortizacion } from '../_shared/amortizacion.ts';
+import { corsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 
 interface CrearPrestamoPayload {
   clienteId: string;
@@ -29,11 +30,14 @@ interface CrearPrestamoPayload {
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...corsHeaders },
   });
 }
 
 Deno.serve(async (req) => {
+  const preflight = handleCorsPreflight(req);
+  if (preflight) return preflight;
+
   if (req.method !== 'POST') {
     return jsonResponse({ error: 'Método no permitido' }, 405);
   }

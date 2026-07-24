@@ -240,7 +240,7 @@ export function Calculator() {
                   </div>
                   <div className="p-4 rounded-xl bg-surfaceHighlight/50 border border-border">
                      <p className="text-xs text-muted mb-1">Total Intereses</p>
-                     <p className="text-lg font-bold text-accent-pink">
+                     <p className="text-lg font-bold text-accent-gold">
                         {formatCurrency(result.detalleCuotas.reduce((acc, curr) => acc + curr.interes, 0))}
                      </p>
                   </div>
@@ -270,7 +270,7 @@ export function Calculator() {
                         <td className="px-4 py-2.5 text-muted">{cuota.numeroCuota}</td>
                         <td className="px-4 py-2.5 font-medium text-main">{formatCurrency(cuota.monto)}</td>
                         <td className="px-4 py-2.5 text-muted">{formatDate(cuota.fechaVencimiento)}</td>
-                        <td className="px-4 py-2.5 text-accent-pink">{formatCurrency(cuota.interes)}</td>
+                        <td className="px-4 py-2.5 text-accent-gold">{formatCurrency(cuota.interes)}</td>
                         <td className="px-4 py-2.5 text-green-400">{formatCurrency(cuota.capital)}</td>
                         <td className="px-4 py-2.5 text-muted">{formatCurrency(Math.abs(cuota.saldoRestante))}</td>
                       </tr>

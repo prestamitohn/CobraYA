@@ -164,7 +164,7 @@ export function Admin() {
           title="Total Cobrado (Plataforma)"
           value={metrics ? formatCurrency(metrics.totalCobradoPlataforma) : '...'}
           icon={TrendingUp}
-          iconColor="bg-purple-500/10 text-purple-400"
+          iconColor="bg-blue-500/10 text-blue-400"
           description="Suma de todos los pagos registrados"
           loading={isLoadingMetrics}
         />

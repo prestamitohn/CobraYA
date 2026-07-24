@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend
 } from 'recharts';
-import { DollarSign, AlertTriangle, TrendingUp, Users, Plus, UserPlus, FileText, ArrowRight } from 'lucide-react';
+import { Banknote, AlertTriangle, TrendingUp, Users, Plus, UserPlus, FileText, ArrowRight } from 'lucide-react';
 import { KPIWidget } from '../components/dashboard/KPIWidget';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../hooks/useTheme';
@@ -21,8 +21,10 @@ import {
 } from '../services/dashboardService';
 import { Link } from 'react-router-dom';
 
-// Custom Colors for the theme
-const COLORS = ['#A855F7', '#10B981', '#F472B6', '#FBBF24'];
+// Paleta categórica validada (dataviz skill) para el gráfico de composición de cartera:
+// verde CobraYA, dorado CobraYA, azul y rojo — ΔE de daltonismo par verde/dorado en
+// banda de advertencia, mitigado con leyenda directa (siempre visible abajo).
+const COLORS = ['#059669', '#D97706', '#3987E5', '#E34948'];
 const THEME_COLORS = {
     grid: '#2A3241',
     text: '#9CA3AF',
@@ -80,7 +82,7 @@ export function Dashboard() {
             <KPIWidget
             title="Total Prestado Historico"
             value={kpis ? formatCurrency(kpis.totalPrestadoHistorico) : '...'}
-            icon={DollarSign}
+            icon={Banknote}
             trend="+12.5%"
             trendUp={true}
             iconColor="bg-primary-500/10 text-primary-400"
@@ -208,7 +210,7 @@ export function Dashboard() {
                     contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text-main)' }}
                     itemStyle={{ color: 'var(--color-text-main)' }}
                 />
-                <Bar dataKey="valor" fill="#A855F7" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="valor" fill="#F59E0B" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
             ) : (
@@ -364,7 +366,7 @@ export function Dashboard() {
                         <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-surfaceHighlight/50 transition-colors border border-transparent hover:border-border">
                             <div className="flex items-center gap-3">
                                 <div className={`p-2 rounded-full ${tx.type === 'Pago' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                                    {tx.type === 'Pago' ? <DollarSign className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+                                    {tx.type === 'Pago' ? <Banknote className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                                 </div>
                                 <div>
                                     <p className="text-sm font-medium text-main">{tx.entityName}</p>

@@ -107,7 +107,7 @@ export const SISTEMAS_AMORTIZACION: { value: SistemaAmortizacion; label: string 
   { value: 'directo', label: 'Interés Simple sobre Saldo (el más común en HN)' },
   { value: 'frances', label: 'Francés — banca formal (Cuota Fija)' },
   { value: 'aleman', label: 'Alemán — banca formal (Amortización Fija)' },
-  { value: 'americano', label: 'Americano — banca formal (Solo Interés)' },
+  { value: 'americano', label: 'Bullet / Americano (Interés primero, capital al final)' },
 ];
 
 export const FRECUENCIAS_COBRO: { value: FrecuenciaCobro; label: string }[] = [

@@ -47,6 +47,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [tenantEstado, setTenantEstado] = useState<TenantEstado | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // is_superadmin/mi_tenant_estado solo importan para el 1% de sesiones (superadmin) o
+  // para mostrar el bloqueo de cuenta suspendida — no tiene sentido que TODOS los
+  // logins esperen esas dos RPC antes de poder pintar la app (medido: la primera vez
+  // que Postgres compila el plan de una RPC puede tardar >1s). Se resuelven en
+  // background después de que el usuario ya está listo, no bloquean isLoading.
+  const loadExtras = () => {
+    supabase.rpc('is_superadmin').then(({ data }) => setEsSuperadmin(!!data));
+    supabase.rpc('mi_tenant_estado').then(({ data }) => {
+      const row = data?.[0];
+      setTenantEstado(row ? { nombre: row.nombre, estadoSuscripcion: row.estado_suscripcion } : null);
+    });
+  };
+
   const loadUsuario = async (sess: Session | null) => {
     if (sess?.user) {
       // La fila en `usuarios` la crea el trigger handle_new_user() al registrarse;
@@ -57,14 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         usuario = await fetchUsuario(sess.user.id);
       }
       setUser(usuario);
-
-      const [{ data: superadminData }, { data: tenantEstadoData }] = await Promise.all([
-        supabase.rpc('is_superadmin'),
-        supabase.rpc('mi_tenant_estado'),
-      ]);
-      setEsSuperadmin(!!superadminData);
-      const tenantRow = tenantEstadoData?.[0];
-      setTenantEstado(tenantRow ? { nombre: tenantRow.nombre, estadoSuscripcion: tenantRow.estado_suscripcion } : null);
+      loadExtras();
     } else {
       setUser(null);
       setEsSuperadmin(false);
