@@ -3,11 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getLoanById, deleteLoan } from '../services/loanService';
 import { getInstallments } from '../services/installmentService';
-import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X } from 'lucide-react';
-import { Cuota, getEstadoPrestamoLabel, getEstadoCuotaLabel } from '../types/cobraya';
+import { getGastosAdministrativos } from '../services/gastoAdministrativoService';
+import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt } from 'lucide-react';
+import { getEstadoPrestamoLabel, getEstadoCuotaLabel } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { PaymentModal } from '../components/payments/PaymentModal';
+import { PaymentModal, PagableItem } from '../components/payments/PaymentModal';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 import { useLoanAliases } from '../hooks/useLoanAliases';
@@ -19,7 +20,8 @@ export function LoanDetails() {
   const { getAlias, setAlias } = useLoanAliases();
   const loanId = id || '';
 
-  const [selectedInstallment, setSelectedInstallment] = useState<Cuota | null>(null);
+  const [selectedItem, setSelectedItem] = useState<PagableItem | null>(null);
+  const [selectedKind, setSelectedKind] = useState<'cuota' | 'gasto'>('cuota');
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isAdvancePayment, setIsAdvancePayment] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -56,9 +58,23 @@ export function LoanDetails() {
     enabled: !!loanId,
   });
 
+  const tieneGastoAdministrativo = !!loan?.gastoAdministrativoMonto;
+  const { data: gastosAdministrativos } = useQuery({
+    queryKey: ['gastosAdministrativos', loanId],
+    queryFn: () => getGastosAdministrativos(loanId),
+    enabled: !!loanId && tieneGastoAdministrativo,
+  });
+
   const cuotasSaldadas = installments?.filter((i) => i.estado === 'saldada').length ?? 0;
   const lastPendingInstallment = installments?.filter(i => i.estado === 'pendiente')
     .sort((a, b) => b.nroCuota - a.nroCuota)[0];
+
+  const openPayment = (item: PagableItem, kind: 'cuota' | 'gasto', advance = false) => {
+    setSelectedItem(item);
+    setSelectedKind(kind);
+    setIsAdvancePayment(advance);
+    setIsPaymentModalOpen(true);
+  };
 
   if (isLoadingLoan || isLoadingInstallments) {
     return (
@@ -145,11 +161,11 @@ export function LoanDetails() {
         <div className="flex items-center gap-4">
           {(loan.estado === 'activo' && lastPendingInstallment) && (
             <button
-              onClick={() => {
-                setSelectedInstallment(lastPendingInstallment);
-                setIsAdvancePayment(true);
-                setIsPaymentModalOpen(true);
-              }}
+              onClick={() => openPayment(
+                { id: lastPendingInstallment.id, numero: lastPendingInstallment.nroCuota, monto: lastPendingInstallment.monto, saldoPendiente: lastPendingInstallment.saldoPendiente ?? null },
+                'cuota',
+                true,
+              )}
               className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded-lg transition-colors border border-yellow-500/20"
             >
               <Zap className="h-4 w-4" />
@@ -194,6 +210,14 @@ export function LoanDetails() {
                 <span className="text-muted">Frecuencia de Cobro</span>
                 <span className="text-main font-medium capitalize">{loan.frecuenciaCobro}</span>
               </div>
+              {tieneGastoAdministrativo && (
+                <div className="flex justify-between">
+                  <span className="text-muted">Gasto Administrativo</span>
+                  <span className="text-main font-medium">
+                    {formatCurrency(loan.gastoAdministrativoMonto!)} / <span className="capitalize">{loan.gastoAdministrativoFrecuencia}</span>
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted">Fecha Otorgamiento</span>
                 <span className="text-main font-medium">{formatDate(loan.fechaOtorgamiento)}</span>
@@ -274,10 +298,10 @@ export function LoanDetails() {
                     <td className="px-6 py-4 text-right">
                       {cuota.estado !== 'saldada' && (
                         <button
-                          onClick={() => {
-                            setSelectedInstallment(cuota);
-                            setIsPaymentModalOpen(true);
-                          }}
+                          onClick={() => openPayment(
+                            { id: cuota.id, numero: cuota.nroCuota, monto: cuota.monto, saldoPendiente: cuota.saldoPendiente ?? null },
+                            'cuota',
+                          )}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors"
                         >
                           <CreditCard className="h-3.5 w-3.5" />
@@ -298,16 +322,85 @@ export function LoanDetails() {
             </table>
           </div>
         </div>
+
+        {tieneGastoAdministrativo && (
+          <div className="md:col-span-3 glass-panel rounded-xl border border-border overflow-hidden">
+            <div className="p-6 border-b border-border">
+              <h2 className="text-lg font-semibold text-main flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary-500" />
+                Gastos Administrativos
+              </h2>
+              <p className="text-sm text-muted mt-1">
+                Cargo aparte de capital e interés, cobrado {loan.gastoAdministrativoFrecuencia === 'semanal' ? 'semanalmente' : 'mensualmente'}.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-surfaceHighlight text-muted">
+                  <tr>
+                    <th className="px-6 py-3 font-medium">#</th>
+                    <th className="px-6 py-3 font-medium">Vencimiento</th>
+                    <th className="px-6 py-3 font-medium">Monto</th>
+                    <th className="px-6 py-3 font-medium">Saldo</th>
+                    <th className="px-6 py-3 font-medium">Estado</th>
+                    <th className="px-6 py-3 font-medium text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {gastosAdministrativos?.map((gasto) => (
+                    <tr key={gasto.id} className="hover:bg-surfaceHighlight/50 transition-colors">
+                      <td className="px-6 py-4 font-medium text-main">{gasto.numero.toString().padStart(2, '0')}</td>
+                      <td className="px-6 py-4 text-muted">{formatDate(gasto.fechaVto)}</td>
+                      <td className="px-6 py-4 text-main">{formatCurrency(gasto.monto)}</td>
+                      <td className="px-6 py-4 text-main">{formatCurrency(gasto.saldoPendiente)}</td>
+                      <td className="px-6 py-4">
+                        <StatusBadge variant={
+                          gasto.estado === 'saldada' ? 'success' :
+                          gasto.estado === 'pendiente' ? 'warning' :
+                          'error'
+                        }>
+                          {getEstadoCuotaLabel(gasto.estado)}
+                        </StatusBadge>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {gasto.estado !== 'saldada' && (
+                          <button
+                            onClick={() => openPayment(
+                              { id: gasto.id, numero: gasto.numero, monto: gasto.monto, saldoPendiente: gasto.saldoPendiente },
+                              'gasto',
+                            )}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" />
+                            Pagar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {!gastosAdministrativos?.length && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-muted">
+                        No hay cargos de gasto administrativo generados.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       <PaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => {
           setIsPaymentModalOpen(false);
-          setSelectedInstallment(null);
+          setSelectedItem(null);
           setIsAdvancePayment(false);
         }}
-        installment={selectedInstallment}
+        item={selectedItem}
+        kind={selectedKind}
         isAdvance={isAdvancePayment}
       />
 

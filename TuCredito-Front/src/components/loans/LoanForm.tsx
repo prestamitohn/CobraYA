@@ -7,8 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { simulateLoan, createLoan } from '../../services/loanService';
 import { getBorrowers } from '../../services/borrowerService';
 import type { SimulacionResultado } from '../../lib/amortizacion';
-import { SISTEMAS_AMORTIZACION, FRECUENCIAS_COBRO } from '../../types/cobraya';
-import { Loader2, Calculator, CheckCircle, User, Search } from 'lucide-react';
+import { SISTEMAS_AMORTIZACION, FRECUENCIAS_COBRO, FRECUENCIAS_GASTO_ADMINISTRATIVO } from '../../types/cobraya';
+import { Loader2, Calculator, CheckCircle, User, Search, Receipt } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { CurrencyInput } from '../ui/CurrencyInput';
@@ -24,7 +24,13 @@ const loanSchema = z.object({
   sistemaAmortizacion: z.enum(['directo', 'frances', 'aleman', 'americano']),
   frecuenciaCobro: z.enum(['diario', 'semanal', 'quincenal', 'mensual']),
   fechaOtorgamiento: z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Fecha inválida' }),
-});
+  tieneGastoAdministrativo: z.boolean(),
+  gastoAdministrativoMonto: z.number().optional(),
+  gastoAdministrativoFrecuencia: z.enum(['semanal', 'mensual']).optional(),
+}).refine(
+  (data) => !data.tieneGastoAdministrativo || (data.gastoAdministrativoMonto ?? 0) > 0,
+  { message: 'Indicá el monto del gasto administrativo', path: ['gastoAdministrativoMonto'] },
+);
 
 type LoanFormData = z.infer<typeof loanSchema>;
 
@@ -38,7 +44,7 @@ export function LoanForm() {
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
   const [pendingData, setPendingData] = useState<LoanFormData | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, getValues, reset, control } = useForm<LoanFormData>({
+  const { register, handleSubmit, formState: { errors }, getValues, reset, control, watch } = useForm<LoanFormData>({
     resolver: zodResolver(loanSchema),
     defaultValues: {
       clienteId: '',
@@ -47,8 +53,12 @@ export function LoanForm() {
       tasaInteres: 10,
       cantidadCuotas: 12,
       fechaOtorgamiento: new Date().toISOString().split('T')[0],
+      tieneGastoAdministrativo: false,
+      gastoAdministrativoFrecuencia: 'mensual',
     }
   });
+
+  const tieneGastoAdministrativo = watch('tieneGastoAdministrativo');
 
   const { data: borrowers } = useQuery({
     queryKey: ['borrowers'],
@@ -111,6 +121,8 @@ export function LoanForm() {
       frecuenciaCobro: pendingData.frecuenciaCobro,
       fechaOtorgamiento: pendingData.fechaOtorgamiento,
       moneda: 'HNL',
+      gastoAdministrativoMonto: pendingData.tieneGastoAdministrativo ? Number(pendingData.gastoAdministrativoMonto) : null,
+      gastoAdministrativoFrecuencia: pendingData.tieneGastoAdministrativo ? pendingData.gastoAdministrativoFrecuencia : null,
     });
   };
 
@@ -243,6 +255,46 @@ export function LoanForm() {
               />
               {errors.fechaOtorgamiento && <p className="mt-1 text-xs text-red-400">{errors.fechaOtorgamiento.message}</p>}
             </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surfaceHighlight/30 p-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-main cursor-pointer">
+              <input type="checkbox" {...register('tieneGastoAdministrativo')} className="rounded border-border text-primary-500 focus:ring-primary-500" />
+              <Receipt className="h-4 w-4 text-primary-500" />
+              Cobrar Gasto Administrativo
+            </label>
+            <p className="mt-1 text-xs text-muted">Cargo adicional al cliente, aparte de capital e interés, con su propia frecuencia (independiente de la frecuencia de cobro del préstamo).</p>
+
+            {tieneGastoAdministrativo && (
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-muted">Monto (L)</label>
+                  <Controller
+                    control={control}
+                    name="gastoAdministrativoMonto"
+                    render={({ field }) => (
+                      <CurrencyInput
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        className={`mt-1 block w-full rounded-xl border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:ring-1 transition-all duration-200 ${errors.gastoAdministrativoMonto ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border focus:border-primary-500 focus:ring-primary-500'}`}
+                      />
+                    )}
+                  />
+                  {errors.gastoAdministrativoMonto && <p className="mt-1 text-xs text-red-400">{errors.gastoAdministrativoMonto.message}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-muted">Frecuencia del Gasto</label>
+                  <select
+                    {...register('gastoAdministrativoFrecuencia')}
+                    className="mt-1 block w-full rounded-xl border border-border bg-surface/50 px-4 py-3 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-200 [&>option]:bg-surface"
+                  >
+                    {FRECUENCIAS_GASTO_ADMINISTRATIVO.map((f) => (
+                      <option key={f.value} value={f.value}>{f.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex space-x-3 pt-4">

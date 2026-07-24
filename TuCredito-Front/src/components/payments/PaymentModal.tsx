@@ -1,20 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { registrarPago, getMediosPago } from '../../services/paymentService';
-import { Cuota } from '../../types/cobraya';
+import { registrarPagoGastoAdministrativo } from '../../services/gastoAdministrativoService';
 import { useToast } from '../../context/ToastContext';
 import { X, Banknote, Calendar, CreditCard, Percent, Save, Zap } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { CurrencyInput } from '../ui/CurrencyInput';
 
+/** Forma mínima común entre Cuota y GastoAdministrativo, lo único que este modal necesita. */
+export interface PagableItem {
+  id: string;
+  numero: number;
+  monto: number;
+  saldoPendiente: number | null;
+}
+
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  installment: Cuota | null;
+  item: PagableItem | null;
+  kind?: 'cuota' | 'gasto';
   isAdvance?: boolean;
 }
 
-export function PaymentModal({ isOpen, onClose, installment, isAdvance = false }: PaymentModalProps) {
+export function PaymentModal({ isOpen, onClose, item, kind = 'cuota', isAdvance = false }: PaymentModalProps) {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
@@ -27,13 +36,13 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false }
   const [recargo, setRecargo] = useState(0);
 
   useEffect(() => {
-    if (installment) {
-      setMonto(installment.saldoPendiente ?? installment.monto);
+    if (item) {
+      setMonto(item.saldoPendiente ?? item.monto);
       setFechaPago(new Date().toISOString().split('T')[0]);
       setDescuento(0);
       setRecargo(0);
     }
-  }, [installment]);
+  }, [item]);
 
   useEffect(() => {
     if (mediosPago && mediosPago.length > 0 && !mediosPago.some((m) => m.id === medioPagoId)) {
@@ -42,17 +51,27 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false }
   }, [mediosPago, medioPagoId]);
 
   const mutation = useMutation({
-    mutationFn: () => registrarPago({
-      cuotaId: installment!.id,
-      medioPagoId,
-      monto: Number(monto),
-      descuento: Number(descuento || 0),
-      recargo: Number(recargo || 0),
-      fechaPago,
-    }),
+    mutationFn: () => kind === 'gasto'
+      ? registrarPagoGastoAdministrativo({
+          gastoAdministrativoId: item!.id,
+          medioPagoId,
+          monto: Number(monto),
+          descuento: Number(descuento || 0),
+          recargo: Number(recargo || 0),
+          fechaPago,
+        })
+      : registrarPago({
+          cuotaId: item!.id,
+          medioPagoId,
+          monto: Number(monto),
+          descuento: Number(descuento || 0),
+          recargo: Number(recargo || 0),
+          fechaPago,
+        }),
     onSuccess: () => {
       addToast(isAdvance ? 'Pago anticipado registrado correctamente' : 'Pago registrado exitosamente', 'success');
       queryClient.invalidateQueries({ queryKey: ['installments'] });
+      queryClient.invalidateQueries({ queryKey: ['gastosAdministrativos'] });
       queryClient.invalidateQueries({ queryKey: ['loan'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['loans'] });
@@ -65,11 +84,13 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!installment || !monto) return;
+    if (!item || !monto) return;
     mutation.mutate();
   };
 
-  if (!isOpen || !installment) return null;
+  if (!isOpen || !item) return null;
+
+  const titulo = kind === 'gasto' ? `Gasto Administrativo #${item.numero}` : `Cuota #${item.numero}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -78,7 +99,7 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false }
           <div className="flex items-center gap-2">
             {isAdvance && <Zap className="h-5 w-5 text-yellow-500" />}
             <h2 className="text-lg font-semibold text-main">
-              {isAdvance ? 'Pago Anticipado' : 'Registrar Pago'} - Cuota #{installment.nroCuota}
+              {isAdvance ? 'Pago Anticipado' : 'Registrar Pago'} - {titulo}
             </h2>
           </div>
           <button onClick={onClose} className="text-muted hover:text-main transition-colors">
@@ -103,7 +124,7 @@ export function PaymentModal({ isOpen, onClose, installment, isAdvance = false }
               />
             </div>
             <p className="text-xs text-muted">
-              Saldo pendiente: {formatCurrency(installment.saldoPendiente ?? installment.monto)}
+              Saldo pendiente: {formatCurrency(item.saldoPendiente ?? item.monto)}
             </p>
           </div>
 

@@ -6,16 +6,15 @@ import { Search, AlertCircle, CheckCircle2, Plus } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { StatusBadge } from '../components/ui/StatusBadge';
 
-import { PaymentModal } from '../components/payments/PaymentModal';
+import { PaymentModal, PagableItem } from '../components/payments/PaymentModal';
 import { NewPaymentModal } from '../components/payments/NewPaymentModal';
-import { Cuota } from '../types/cobraya';
 
 export function Payments() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [isNewPaymentModalOpen, setIsNewPaymentModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [selectedInstallment, setSelectedInstallment] = useState<Cuota | null>(null);
+  const [selectedInstallment, setSelectedInstallment] = useState<PagableItem | null>(null);
 
   const { data: payments, isLoading, error } = useQuery({
     queryKey: ['payments'],
@@ -132,7 +131,12 @@ export function Payments() {
         isOpen={isNewPaymentModalOpen}
         onClose={() => setIsNewPaymentModalOpen(false)}
         onInstallmentSelect={(installment) => {
-          setSelectedInstallment(installment);
+          setSelectedInstallment({
+            id: installment.id,
+            numero: installment.nroCuota,
+            monto: installment.monto,
+            saldoPendiente: installment.saldoPendiente ?? null,
+          });
           setIsNewPaymentModalOpen(false);
           setIsPaymentModalOpen(true);
         }}
@@ -144,7 +148,8 @@ export function Payments() {
           setIsPaymentModalOpen(false);
           setSelectedInstallment(null);
         }}
-        installment={selectedInstallment}
+        item={selectedInstallment}
+        kind="cuota"
       />
     </div>
   );

@@ -8,6 +8,7 @@ export type EstadoPrestamo = 'activo' | 'finalizado' | 'eliminado' | 'archivado'
 export type EstadoCuota = 'pendiente' | 'saldada' | 'vencida' | 'reprogramada';
 export type SistemaAmortizacion = 'frances' | 'aleman' | 'americano' | 'directo';
 export type FrecuenciaCobro = 'diario' | 'semanal' | 'quincenal' | 'mensual';
+export type FrecuenciaGastoAdministrativo = 'semanal' | 'mensual';
 export type EstadoSuscripcion = 'prueba' | 'activa' | 'suspendida' | 'cancelada';
 
 export interface Usuario {
@@ -64,6 +65,8 @@ export interface Prestamo {
   fechaPrimerVto: string;
   fechaFinEstimada?: string | null;
   moneda: string;
+  gastoAdministrativoMonto?: number | null;
+  gastoAdministrativoFrecuencia?: FrecuenciaGastoAdministrativo | null;
   cliente?: Pick<Cliente, 'id' | 'nombre' | 'apellido' | 'documento'> | null;
 }
 
@@ -78,6 +81,22 @@ export interface Cuota {
   fechaVto: string;
   estado: EstadoCuota;
 }
+
+/** Cargo del cronograma de gastos administrativos — cobro aparte de capital+interés. */
+export interface GastoAdministrativo {
+  id: string;
+  prestamoId: string;
+  numero: number;
+  monto: number;
+  saldoPendiente: number;
+  fechaVto: string;
+  estado: EstadoCuota;
+}
+
+export const FRECUENCIAS_GASTO_ADMINISTRATIVO: { value: FrecuenciaGastoAdministrativo; label: string }[] = [
+  { value: 'semanal', label: 'Semanal' },
+  { value: 'mensual', label: 'Mensual' },
+];
 
 export interface Pago {
   id: string;

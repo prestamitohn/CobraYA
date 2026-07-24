@@ -25,6 +25,8 @@ interface CrearPrestamoPayload {
   fechaOtorgamiento: string; // ISO date (yyyy-mm-dd)
   moneda?: string;
   cobradorId?: string | null;
+  gastoAdministrativoMonto?: number | null;
+  gastoAdministrativoFrecuencia?: 'semanal' | 'mensual' | null;
 }
 
 function jsonResponse(body: unknown, status: number): Response {
@@ -57,11 +59,16 @@ Deno.serve(async (req) => {
   const {
     clienteId, montoPrestamo, cantidadCuotas, tasaInteres,
     sistemaAmortizacion, frecuenciaCobro, fechaOtorgamiento, moneda, cobradorId,
+    gastoAdministrativoMonto, gastoAdministrativoFrecuencia,
   } = payload;
 
   if (!clienteId || !montoPrestamo || !cantidadCuotas || tasaInteres === undefined
       || !sistemaAmortizacion || !frecuenciaCobro || !fechaOtorgamiento) {
     return jsonResponse({ error: 'Payload incompleto' }, 400);
+  }
+
+  if (gastoAdministrativoMonto && !gastoAdministrativoFrecuencia) {
+    return jsonResponse({ error: 'Falta la frecuencia del gasto administrativo' }, 400);
   }
 
   const supabase = createClient(
@@ -105,6 +112,8 @@ Deno.serve(async (req) => {
     p_moneda: moneda ?? 'HNL',
     p_cobrador_id: cobradorId ?? null,
     p_cuotas: cuotasPayload,
+    p_gasto_administrativo_monto: gastoAdministrativoMonto ?? null,
+    p_gasto_administrativo_frecuencia: gastoAdministrativoFrecuencia ?? null,
   });
 
   if (error) {

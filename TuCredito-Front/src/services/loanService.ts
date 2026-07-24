@@ -4,7 +4,7 @@ import {
   type SimulacionEntrada,
   type SimulacionResultado,
 } from '../lib/amortizacion';
-import { Prestamo, EstadoPrestamo, SistemaAmortizacion, FrecuenciaCobro } from '../types/cobraya';
+import { Prestamo, EstadoPrestamo, SistemaAmortizacion, FrecuenciaCobro, FrecuenciaGastoAdministrativo } from '../types/cobraya';
 
 interface PrestamoRow {
   id: string;
@@ -21,10 +21,12 @@ interface PrestamoRow {
   fecha_primer_vto: string;
   fecha_fin_estimada: string | null;
   moneda: string;
+  gasto_administrativo_monto: number | null;
+  gasto_administrativo_frecuencia: FrecuenciaGastoAdministrativo | null;
   cliente?: { id: string; nombre: string; apellido: string | null; documento: string } | null;
 }
 
-const PRESTAMO_SELECT = 'id, cliente_id, cobrador_id, monto_otorgado, saldo_restante, cantidad_cuotas, tasa_interes, sistema_amortizacion, frecuencia_cobro, estado, fecha_otorgamiento, fecha_primer_vto, fecha_fin_estimada, moneda, cliente:clientes(id, nombre, apellido, documento)';
+const PRESTAMO_SELECT = 'id, cliente_id, cobrador_id, monto_otorgado, saldo_restante, cantidad_cuotas, tasa_interes, sistema_amortizacion, frecuencia_cobro, estado, fecha_otorgamiento, fecha_primer_vto, fecha_fin_estimada, moneda, gasto_administrativo_monto, gasto_administrativo_frecuencia, cliente:clientes(id, nombre, apellido, documento)';
 
 function mapPrestamo(row: PrestamoRow): Prestamo {
   return {
@@ -42,6 +44,8 @@ function mapPrestamo(row: PrestamoRow): Prestamo {
     fechaPrimerVto: row.fecha_primer_vto,
     fechaFinEstimada: row.fecha_fin_estimada,
     moneda: row.moneda,
+    gastoAdministrativoMonto: row.gasto_administrativo_monto,
+    gastoAdministrativoFrecuencia: row.gasto_administrativo_frecuencia,
     cliente: row.cliente,
   };
 }
@@ -61,6 +65,8 @@ export interface CreateLoanInput {
   fechaOtorgamiento: string; // yyyy-mm-dd
   moneda?: string;
   cobradorId?: string | null;
+  gastoAdministrativoMonto?: number | null;
+  gastoAdministrativoFrecuencia?: FrecuenciaGastoAdministrativo | null;
 }
 
 export async function createLoan(input: CreateLoanInput): Promise<{ prestamoId: string; simulacion: SimulacionResultado }> {
