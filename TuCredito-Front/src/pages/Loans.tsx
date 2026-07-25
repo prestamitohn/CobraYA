@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getLoansByFilter, deleteLoan } from '../services/loanService';
+import { getClasificacionesClientes } from '../services/clasificacionService';
 import { Plus, Search, Filter, ArrowUpRight, AlertCircle, X, Trash2, Info, Edit2, Save } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { EstadoPrestamo, getEstadoPrestamoLabel } from '../types/cobraya';
+import { EstadoPrestamo, ClasificacionCliente, getEstadoPrestamoLabel, getClasificacionLabel } from '../types/cobraya';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 import { useLoanAliases } from '../hooks/useLoanAliases';
@@ -32,9 +33,22 @@ export function Loans() {
   const [editingAliasId, setEditingAliasId] = useState<string | null>(null);
   const [editingAliasValue, setEditingAliasValue] = useState('');
 
-  const [filters, setFilters] = useState<{ nombre: string; estado: EstadoPrestamo | '' }>({
+  const [filters, setFilters] = useState<{
+    nombre: string;
+    estado: EstadoPrestamo | '';
+    fechaDesde: string;
+    fechaHasta: string;
+    montoMin: string;
+    montoMax: string;
+    clasificacion: ClasificacionCliente | '';
+  }>({
     nombre: '',
     estado: '',
+    fechaDesde: '',
+    fechaHasta: '',
+    montoMin: '',
+    montoMax: '',
+    clasificacion: '',
   });
 
   useEffect(() => {
@@ -52,8 +66,22 @@ export function Loans() {
     queryFn: () => getLoansByFilter({
       nombre: filters.nombre || undefined,
       estado: filters.estado || undefined,
+      fechaDesde: filters.fechaDesde || undefined,
+      fechaHasta: filters.fechaHasta || undefined,
+      montoMin: filters.montoMin ? Number(filters.montoMin) : undefined,
+      montoMax: filters.montoMax ? Number(filters.montoMax) : undefined,
     }),
   });
+
+  const { data: clasificaciones } = useQuery({
+    queryKey: ['clasificaciones'],
+    queryFn: getClasificacionesClientes,
+  });
+  const clasificacionPorCliente = new Map(clasificaciones?.map((c) => [c.clienteId, c]));
+
+  const filteredLoans = filters.clasificacion
+    ? loans?.filter((loan) => clasificacionPorCliente.get(loan.clienteId)?.clasificacion === filters.clasificacion)
+    : loans;
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteLoan(id),
@@ -88,14 +116,16 @@ export function Loans() {
     }
   };
 
-  const handleFilterChange = (key: 'nombre' | 'estado', value: string) => {
+  const handleFilterChange = (key: keyof typeof filters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
   const clearFilters = () => {
-    setFilters({ nombre: '', estado: '' });
+    setFilters({ nombre: '', estado: '', fechaDesde: '', fechaHasta: '', montoMin: '', montoMax: '', clasificacion: '' });
     setNameInput('');
   };
+
+  const hasAdvancedFilters = !!(filters.fechaDesde || filters.fechaHasta || filters.montoMin || filters.montoMax || filters.clasificacion);
 
   if (error) {
     return (
@@ -114,7 +144,7 @@ export function Loans() {
           <p className="text-muted">Gestiona y visualiza todos los préstamos activos</p>
         </div>
         <div className="flex gap-2">
-            <ExportMenu data={loans} columns={LOAN_EXPORT_COLUMNS} filenameBase="Prestamos" title="Reporte de Préstamos" />
+            <ExportMenu data={filteredLoans} columns={LOAN_EXPORT_COLUMNS} filenameBase="Prestamos" title="Reporte de Préstamos" />
             <Link
             to="/loans/create"
             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"
@@ -132,7 +162,7 @@ export function Loans() {
           </div>
           <div>
             <p className="text-sm text-muted">Total Préstamos</p>
-            <p className="text-2xl font-bold text-main">{loans?.length || 0}</p>
+            <p className="text-2xl font-bold text-main">{filteredLoans?.length || 0}</p>
           </div>
         </div>
       </div>
@@ -180,7 +210,7 @@ export function Loans() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
               <input
                 type="text"
-                placeholder="Buscar por cliente o identidad..."
+                placeholder="Buscar por nombre, identidad o teléfono..."
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -193,7 +223,7 @@ export function Loans() {
             </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${showFilters ? 'bg-primary-500/10 border-primary-500 text-primary-500' : 'border-border text-muted hover:bg-surfaceHighlight'}`}
+              className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${showFilters || hasAdvancedFilters ? 'bg-primary-500/10 border-primary-500 text-primary-500' : 'border-border text-muted hover:bg-surfaceHighlight'}`}
             >
               <Filter className="h-4 w-4" />
               Filtros
@@ -214,6 +244,58 @@ export function Loans() {
                   <option value="finalizado">Finalizado</option>
                   <option value="eliminado">Eliminado</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">Clasificación del Cliente</label>
+                <select
+                  value={filters.clasificacion}
+                  onChange={(e) => handleFilterChange('clasificacion', e.target.value)}
+                  className="w-full bg-surface/50 border border-border rounded-lg px-3 py-2 text-sm text-main focus:outline-none focus:border-primary-500 [&>option]:bg-surface"
+                >
+                  <option value="">Todas</option>
+                  <option value="excelente">{getClasificacionLabel('excelente')}</option>
+                  <option value="bueno">{getClasificacionLabel('bueno')}</option>
+                  <option value="regular">{getClasificacionLabel('regular')}</option>
+                  <option value="malo">{getClasificacionLabel('malo')}</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">Otorgado Desde</label>
+                <input
+                  type="date"
+                  value={filters.fechaDesde}
+                  onChange={(e) => handleFilterChange('fechaDesde', e.target.value)}
+                  className="w-full bg-surface/50 border border-border rounded-lg px-3 py-2 text-sm text-main focus:outline-none focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">Otorgado Hasta</label>
+                <input
+                  type="date"
+                  value={filters.fechaHasta}
+                  onChange={(e) => handleFilterChange('fechaHasta', e.target.value)}
+                  className="w-full bg-surface/50 border border-border rounded-lg px-3 py-2 text-sm text-main focus:outline-none focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">Monto Mínimo (L)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={filters.montoMin}
+                  onChange={(e) => handleFilterChange('montoMin', e.target.value)}
+                  className="w-full bg-surface/50 border border-border rounded-lg px-3 py-2 text-sm text-main focus:outline-none focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted mb-1">Monto Máximo (L)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={filters.montoMax}
+                  onChange={(e) => handleFilterChange('montoMax', e.target.value)}
+                  className="w-full bg-surface/50 border border-border rounded-lg px-3 py-2 text-sm text-main focus:outline-none focus:border-primary-500"
+                />
               </div>
               <div className="flex items-end">
                 <button
@@ -248,7 +330,7 @@ export function Loans() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {loans?.map((loan) => (
+              {filteredLoans?.map((loan) => (
                 <tr key={loan.id} className="hover:bg-surfaceHighlight/50 transition-colors">
                   <td className="px-6 py-4 text-muted italic">
                     {editingAliasId === loan.id ? (
@@ -327,7 +409,7 @@ export function Loans() {
                   </td>
                 </tr>
               ))}
-              {loans?.length === 0 && (
+              {filteredLoans?.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-6 py-8 text-center text-muted">
                     No se encontraron préstamos con los filtros seleccionados

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { Breadcrumbs } from '../ui/Breadcrumbs';
+import { NotificationBell } from './NotificationBell';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -12,7 +13,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
+  const { user, logout, esSuperadmin } = useAuth();
   const navigate = useNavigate();
 
   const [isUserOpen, setIsUserOpen] = useState(false);
@@ -52,15 +53,16 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       <div className="flex items-center space-x-3 md:space-x-6">
         <div className="flex items-center space-x-2">
-            <button 
+            <button
                 onClick={toggleTheme}
                 className="rounded-full p-2 text-muted hover:text-main hover:bg-surfaceHighlight transition-colors"
                 title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
             >
                 {theme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
             </button>
+            <NotificationBell enabled={!esSuperadmin} />
         </div>
-        
+
         <div className="flex items-center gap-3 pl-4 border-l border-border/50 relative" ref={userRef}>
              <button 
                 onClick={() => setIsUserOpen(!isUserOpen)}

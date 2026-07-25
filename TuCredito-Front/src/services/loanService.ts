@@ -24,10 +24,10 @@ interface PrestamoRow {
   gasto_administrativo_monto: number | null;
   gasto_administrativo_frecuencia: FrecuenciaGastoAdministrativo | null;
   multa_por_atraso_monto: number | null;
-  cliente?: { id: string; nombre: string; apellido: string | null; documento: string } | null;
+  cliente?: { id: string; nombre: string; apellido: string | null; documento: string; telefono: string | null } | null;
 }
 
-const PRESTAMO_SELECT = 'id, cliente_id, cobrador_id, monto_otorgado, saldo_restante, cantidad_cuotas, tasa_interes, sistema_amortizacion, frecuencia_cobro, estado, fecha_otorgamiento, fecha_primer_vto, fecha_fin_estimada, moneda, gasto_administrativo_monto, gasto_administrativo_frecuencia, multa_por_atraso_monto, cliente:clientes(id, nombre, apellido, documento)';
+const PRESTAMO_SELECT = 'id, cliente_id, cobrador_id, monto_otorgado, saldo_restante, cantidad_cuotas, tasa_interes, sistema_amortizacion, frecuencia_cobro, estado, fecha_otorgamiento, fecha_primer_vto, fecha_fin_estimada, moneda, gasto_administrativo_monto, gasto_administrativo_frecuencia, multa_por_atraso_monto, cliente:clientes(id, nombre, apellido, documento, telefono)';
 
 function mapPrestamo(row: PrestamoRow): Prestamo {
   return {
@@ -95,9 +95,14 @@ export async function getLoanById(id: string): Promise<Prestamo> {
 }
 
 export interface LoanFilters {
+  /** Busca en nombre, apellido, identidad y teléfono del cliente. */
   nombre?: string;
   estado?: EstadoPrestamo;
   clienteId?: string;
+  fechaDesde?: string; // yyyy-mm-dd, sobre fecha_otorgamiento
+  fechaHasta?: string; // yyyy-mm-dd, sobre fecha_otorgamiento
+  montoMin?: number;
+  montoMax?: number;
 }
 
 export async function getLoansByFilter(filters: LoanFilters): Promise<Prestamo[]> {
@@ -109,8 +114,13 @@ export async function getLoansByFilter(filters: LoanFilters): Promise<Prestamo[]
       const term = filters.nombre.toLowerCase();
       const nombreCompleto = `${loan.cliente?.nombre ?? ''} ${loan.cliente?.apellido ?? ''}`.toLowerCase();
       const documento = (loan.cliente?.documento ?? '').toLowerCase();
-      if (!nombreCompleto.includes(term) && !documento.includes(term)) return false;
+      const telefono = (loan.cliente?.telefono ?? '').toLowerCase();
+      if (!nombreCompleto.includes(term) && !documento.includes(term) && !telefono.includes(term)) return false;
     }
+    if (filters.fechaDesde && loan.fechaOtorgamiento < filters.fechaDesde) return false;
+    if (filters.fechaHasta && loan.fechaOtorgamiento > filters.fechaHasta) return false;
+    if (filters.montoMin !== undefined && loan.montoOtorgado < filters.montoMin) return false;
+    if (filters.montoMax !== undefined && loan.montoOtorgado > filters.montoMax) return false;
     return true;
   });
 }

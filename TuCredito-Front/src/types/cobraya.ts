@@ -68,7 +68,7 @@ export interface Prestamo {
   gastoAdministrativoMonto?: number | null;
   gastoAdministrativoFrecuencia?: FrecuenciaGastoAdministrativo | null;
   multaPorAtrasoMonto?: number | null;
-  cliente?: Pick<Cliente, 'id' | 'nombre' | 'apellido' | 'documento'> | null;
+  cliente?: Pick<Cliente, 'id' | 'nombre' | 'apellido' | 'documento' | 'telefono'> | null;
 }
 
 export interface Cuota {

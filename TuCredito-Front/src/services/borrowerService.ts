@@ -60,7 +60,7 @@ export async function getBorrowers(filters?: BorrowerFilters): Promise<Cliente[]
 
   if (filters?.nombre) {
     const term = filters.nombre.replace(/[%,]/g, '');
-    query = query.or(`nombre.ilike.%${term}%,apellido.ilike.%${term}%,documento.ilike.%${term}%`);
+    query = query.or(`nombre.ilike.%${term}%,apellido.ilike.%${term}%,documento.ilike.%${term}%,telefono.ilike.%${term}%`);
   }
   if (filters?.activo !== undefined) {
     query = query.eq('activo', filters.activo);

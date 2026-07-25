@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getBorrowers, toggleBorrowerStatus, BorrowerFilters } from '../services/borrowerService';
 import { getDelinquencyDetails } from '../services/dashboardService';
 import { getClasificacionesClientes } from '../services/clasificacionService';
-import { getClasificacionLabel, getClasificacionColorClass, Cliente } from '../types/cobraya';
+import { getClasificacionLabel, getClasificacionColorClass, Cliente, ClasificacionCliente } from '../types/cobraya';
 import { Plus, Search, User, Mail, Phone, MapPin, AlertCircle, Filter, X, Power, Pencil, ShieldAlert } from 'lucide-react';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
@@ -18,6 +18,7 @@ export function Borrowers() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string>('all'); // all, active, inactive
+  const [clasificacionFilter, setClasificacionFilter] = useState<ClasificacionCliente | ''>('');
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id?: string; currentStatus?: boolean }>({ isOpen: false });
 
   const toggleStatusMutation = useMutation({
@@ -75,6 +76,10 @@ export function Borrowers() {
   const delinquentNames = new Set(delinquencyDetails?.map(d => d.cliente));
   const clasificacionPorCliente = new Map(clasificaciones?.map((c) => [c.clienteId, c]));
 
+  const filteredBorrowers = clasificacionFilter
+    ? borrowers?.filter((b) => clasificacionPorCliente.get(b.id)?.clasificacion === clasificacionFilter)
+    : borrowers;
+
   const borrowerExportColumns: ExportColumn<Cliente>[] = [
     { header: 'Nombre', value: (b) => b.nombre },
     { header: 'Apellido', value: (b) => b.apellido ?? '' },
@@ -114,7 +119,7 @@ export function Borrowers() {
           <p className="text-muted">Directorio de prestatarios registrados</p>
         </div>
         <div className="flex gap-2">
-            <ExportMenu data={borrowers} columns={borrowerExportColumns} filenameBase="Clientes" title="Reporte de Clientes" />
+            <ExportMenu data={filteredBorrowers} columns={borrowerExportColumns} filenameBase="Clientes" title="Reporte de Clientes" />
             <button
               onClick={() => navigate('/borrowers/create')}
               className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"
@@ -144,7 +149,7 @@ export function Borrowers() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
               <input
                 type="text"
-                placeholder="Buscar cliente por nombre o identidad (Presione Enter)"
+                placeholder="Buscar cliente por nombre, identidad o teléfono (Presione Enter)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => {
@@ -157,7 +162,7 @@ export function Borrowers() {
             </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${showFilters ? 'bg-primary-500/10 border-primary-500 text-primary-500' : 'border-border text-muted hover:bg-surfaceHighlight'}`}
+              className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${showFilters || clasificacionFilter ? 'bg-primary-500/10 border-primary-500 text-primary-500' : 'border-border text-muted hover:bg-surfaceHighlight'}`}
             >
               <Filter className="h-4 w-4" />
               Filtros
@@ -165,7 +170,7 @@ export function Borrowers() {
           </div>
 
           {showFilters && (
-            <div className="flex items-center gap-4 pt-4 border-t border-border animate-in fade-in slide-in-from-top-2">
+            <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-border animate-in fade-in slide-in-from-top-2">
               <div className="flex items-center gap-2">
                 <label className="text-sm text-muted">Estado:</label>
                 <div className="flex bg-surface/50 border border-border rounded-lg p-1">
@@ -190,12 +195,28 @@ export function Borrowers() {
                 </div>
               </div>
 
-              {(debouncedSearchTerm || activeFilter !== 'all') && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted">Clasificación:</label>
+                <select
+                  value={clasificacionFilter}
+                  onChange={(e) => setClasificacionFilter(e.target.value as ClasificacionCliente | '')}
+                  className="bg-surface/50 border border-border rounded-lg px-3 py-1.5 text-xs text-main focus:outline-none focus:border-primary-500 [&>option]:bg-surface"
+                >
+                  <option value="">Todas</option>
+                  <option value="excelente">{getClasificacionLabel('excelente')}</option>
+                  <option value="bueno">{getClasificacionLabel('bueno')}</option>
+                  <option value="regular">{getClasificacionLabel('regular')}</option>
+                  <option value="malo">{getClasificacionLabel('malo')}</option>
+                </select>
+              </div>
+
+              {(debouncedSearchTerm || activeFilter !== 'all' || clasificacionFilter) && (
                  <button
                   onClick={() => {
                     setSearchTerm('');
                     setDebouncedSearchTerm('');
                     setActiveFilter('all');
+                    setClasificacionFilter('');
                   }}
                   className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 ml-auto"
                 >
@@ -208,7 +229,7 @@ export function Borrowers() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {borrowers?.map((borrower) => {
+          {filteredBorrowers?.map((borrower) => {
             const isDelinquent = delinquentNames.has(`${borrower.nombre} ${borrower.apellido ?? ''}`.trim());
             const clasificacion = clasificacionPorCliente.get(borrower.id);
             return (
@@ -306,7 +327,7 @@ export function Borrowers() {
             </div>
           ); })}
 
-          {borrowers?.length === 0 && (
+          {filteredBorrowers?.length === 0 && (
             <div className="col-span-full py-12 text-center text-muted">
               <User className="h-12 w-12 mx-auto mb-4 opacity-20" />
               <p>No se encontraron clientes con los criterios de búsqueda</p>
