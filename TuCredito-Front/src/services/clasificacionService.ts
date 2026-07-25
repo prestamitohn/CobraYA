@@ -11,6 +11,8 @@ interface ClasificacionRow {
   porcentaje_cumplimiento: number;
   clasificacion: ClasificacionCliente;
   no_recomendado_refinanciamiento: boolean;
+  es_manual: boolean;
+  clasificacion_manual_motivo: string | null;
 }
 
 function mapClasificacion(row: ClasificacionRow): ClienteClasificacion {
@@ -24,6 +26,8 @@ function mapClasificacion(row: ClasificacionRow): ClienteClasificacion {
     porcentajeCumplimiento: Number(row.porcentaje_cumplimiento),
     clasificacion: row.clasificacion,
     noRecomendadoRefinanciamiento: row.no_recomendado_refinanciamiento,
+    esManual: row.es_manual,
+    clasificacionManualMotivo: row.clasificacion_manual_motivo,
   };
 }
 
@@ -31,4 +35,18 @@ export async function getClasificacionesClientes(): Promise<ClienteClasificacion
   const { data, error } = await supabase.rpc('obtener_clasificacion_clientes');
   if (error) throw error;
   return ((data ?? []) as ClasificacionRow[]).map(mapClasificacion);
+}
+
+export async function establecerClasificacionManual(clienteId: string, clasificacion: ClasificacionCliente, motivo?: string): Promise<void> {
+  const { error } = await supabase.rpc('establecer_clasificacion_manual', {
+    p_cliente_id: clienteId,
+    p_clasificacion: clasificacion,
+    p_motivo: motivo ?? null,
+  });
+  if (error) throw error;
+}
+
+export async function quitarClasificacionManual(clienteId: string): Promise<void> {
+  const { error } = await supabase.rpc('quitar_clasificacion_manual', { p_cliente_id: clienteId });
+  if (error) throw error;
 }

@@ -126,6 +126,8 @@ export interface ClienteClasificacion {
   porcentajeCumplimiento: number;
   clasificacion: ClasificacionCliente;
   noRecomendadoRefinanciamiento: boolean;
+  esManual: boolean;
+  clasificacionManualMotivo?: string | null;
 }
 
 export function getClasificacionLabel(c: ClasificacionCliente): string {

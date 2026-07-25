@@ -8,6 +8,17 @@ import { StatusBadge } from '../components/ui/StatusBadge';
 
 import { PaymentModal, PagableItem } from '../components/payments/PaymentModal';
 import { NewPaymentModal } from '../components/payments/NewPaymentModal';
+import { ExportMenu, ExportColumn } from '../components/ui/ExportMenu';
+import type { PagoDetalle } from '../services/paymentService';
+
+const PAYMENT_EXPORT_COLUMNS: ExportColumn<PagoDetalle>[] = [
+  { header: 'Cliente', value: (p) => p.clienteNombre },
+  { header: 'Cuota', value: (p) => `${p.nroCuota}/${p.cantidadCuotas || '-'}` },
+  { header: 'Monto', value: (p) => p.monto || 0 },
+  { header: 'Fecha', value: (p) => formatDate(p.fechaPago) },
+  { header: 'Medio de Pago', value: (p) => p.medioPago },
+  { header: 'Estado', value: (p) => p.estado },
+];
 
 export function Payments() {
   const navigate = useNavigate();
@@ -53,6 +64,7 @@ export function Payments() {
           <p className="text-muted">Historial de transacciones y pagos recibidos</p>
         </div>
         <div className="flex gap-3">
+          <ExportMenu data={filteredPayments} columns={PAYMENT_EXPORT_COLUMNS} filenameBase="Pagos" title="Reporte de Pagos" />
           <button
             onClick={() => setIsNewPaymentModalOpen(true)}
             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"

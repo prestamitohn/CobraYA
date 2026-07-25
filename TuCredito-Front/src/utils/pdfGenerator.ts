@@ -18,7 +18,7 @@ export const exportToPDF = (title: string, headers: string[], data: string[][], 
     body: data,
     startY: 35,
     theme: 'grid',
-    headStyles: { fillColor: [124, 58, 237], textColor: 255 },
+    headStyles: { fillColor: [5, 150, 105], textColor: 255 },
     styles: { fontSize: 8, cellPadding: 2 },
     alternateRowStyles: { fillColor: [245, 247, 250] }
   });

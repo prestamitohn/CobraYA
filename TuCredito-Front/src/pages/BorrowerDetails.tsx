@@ -3,9 +3,9 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBorrowerByDocumento, updateBorrower } from '../services/borrowerService';
 import { getLoans } from '../services/loanService';
-import { getClasificacionesClientes } from '../services/clasificacionService';
-import { ArrowLeft, User, Users, Edit, Save, X, ShieldAlert, TrendingUp } from 'lucide-react';
-import { getEstadoPrestamoLabel, getClasificacionLabel, getClasificacionColorClass } from '../types/cobraya';
+import { getClasificacionesClientes, establecerClasificacionManual, quitarClasificacionManual } from '../services/clasificacionService';
+import { ArrowLeft, User, Users, Edit, Save, X, ShieldAlert, TrendingUp, UserCog, RotateCcw } from 'lucide-react';
+import { getEstadoPrestamoLabel, getClasificacionLabel, getClasificacionColorClass, ClasificacionCliente } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatCurrency } from '../utils/formatters';
 import { useToast } from '../context/ToastContext';
@@ -24,6 +24,10 @@ export function BorrowerDetails() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<{ correo?: string; telefono?: string; domicilio?: string }>({});
+
+  const [isEditingClasificacion, setIsEditingClasificacion] = useState(false);
+  const [manualClasificacion, setManualClasificacion] = useState<ClasificacionCliente>('bueno');
+  const [manualMotivo, setManualMotivo] = useState('');
 
   const { data: borrower, isLoading: isLoadingBorrower } = useQuery({
     queryKey: ['borrower', documento],
@@ -71,6 +75,35 @@ export function BorrowerDetails() {
 
   const saveEdit = () => updateMutation.mutate(editForm);
 
+  const setManualMutation = useMutation({
+    mutationFn: () => establecerClasificacionManual(borrower!.id, manualClasificacion, manualMotivo.trim() || undefined),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clasificaciones'] });
+      setIsEditingClasificacion(false);
+      addToast('Clasificación manual guardada', 'success');
+    },
+    onError: () => {
+      addToast('Error al guardar la clasificación manual', 'error');
+    }
+  });
+
+  const clearManualMutation = useMutation({
+    mutationFn: () => quitarClasificacionManual(borrower!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clasificaciones'] });
+      addToast('Se volvió a la clasificación automática', 'success');
+    },
+    onError: () => {
+      addToast('Error al quitar la clasificación manual', 'error');
+    }
+  });
+
+  const startEditClasificacion = () => {
+    setManualClasificacion(clasificacion?.clasificacion ?? 'bueno');
+    setManualMotivo(clasificacion?.clasificacionManualMotivo ?? '');
+    setIsEditingClasificacion(true);
+  };
+
   if (isLoadingBorrower) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -117,10 +150,84 @@ export function BorrowerDetails() {
                   <h3 className="font-semibold text-lg text-main flex items-center gap-2">
                     <TrendingUp className="h-5 w-5 text-primary-500" /> Clasificación de Comportamiento de Pago
                   </h3>
-                  <span className={`px-3 py-1 rounded-lg text-sm font-semibold border ${getClasificacionColorClass(clasificacion.clasificacion)}`}>
-                    {getClasificacionLabel(clasificacion.clasificacion)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-lg text-sm font-semibold border ${getClasificacionColorClass(clasificacion.clasificacion)}`}>
+                      {getClasificacionLabel(clasificacion.clasificacion)}
+                    </span>
+                    {clasificacion.esManual && (
+                      <span className="px-2 py-1 rounded-md text-xs font-medium bg-surfaceHighlight text-muted border border-border">
+                        Manual
+                      </span>
+                    )}
+                    {!isEditingClasificacion && (
+                      <button
+                        onClick={startEditClasificacion}
+                        title="Clasificar manualmente"
+                        className="p-1.5 hover:bg-surfaceHighlight rounded-lg text-muted hover:text-primary-500 transition-colors"
+                      >
+                        <UserCog className="h-4 w-4" />
+                      </button>
+                    )}
+                    {clasificacion.esManual && !isEditingClasificacion && (
+                      <button
+                        onClick={() => clearManualMutation.mutate()}
+                        disabled={clearManualMutation.isPending}
+                        title="Volver a clasificación automática"
+                        className="p-1.5 hover:bg-red-500/10 rounded-lg text-muted hover:text-red-500 transition-colors"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {isEditingClasificacion && (
+                  <div className="rounded-xl border border-border bg-surfaceHighlight/30 p-4 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-muted mb-1">Clasificación manual</label>
+                      <select
+                        value={manualClasificacion}
+                        onChange={(e) => setManualClasificacion(e.target.value as ClasificacionCliente)}
+                        className="w-full bg-surface/50 border border-border rounded-lg px-3 py-2 text-sm text-main focus:outline-none focus:border-primary-500 [&>option]:bg-surface"
+                      >
+                        <option value="excelente">Excelente</option>
+                        <option value="bueno">Bueno</option>
+                        <option value="regular">Regular</option>
+                        <option value="malo">Malo</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted mb-1">Motivo (opcional)</label>
+                      <input
+                        type="text"
+                        value={manualMotivo}
+                        onChange={(e) => setManualMotivo(e.target.value)}
+                        placeholder="Ej. Referencia personal confiable, cliente conocido..."
+                        className="w-full bg-surface/50 border border-border rounded-lg px-3 py-2 text-sm text-main focus:outline-none focus:border-primary-500"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setIsEditingClasificacion(false)}
+                        className="px-3 py-1.5 text-sm text-muted hover:text-main transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => setManualMutation.mutate()}
+                        disabled={setManualMutation.isPending}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        <Save className="h-3.5 w-3.5" />
+                        Guardar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {clasificacion.esManual && clasificacion.clasificacionManualMotivo && !isEditingClasificacion && (
+                  <p className="text-sm text-muted italic">Motivo: {clasificacion.clasificacionManualMotivo}</p>
+                )}
 
                 {clasificacion.noRecomendadoRefinanciamiento && (
                   <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2">

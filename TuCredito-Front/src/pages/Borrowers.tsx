@@ -4,10 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { getBorrowers, toggleBorrowerStatus, BorrowerFilters } from '../services/borrowerService';
 import { getDelinquencyDetails } from '../services/dashboardService';
 import { getClasificacionesClientes } from '../services/clasificacionService';
-import { getClasificacionLabel, getClasificacionColorClass } from '../types/cobraya';
+import { getClasificacionLabel, getClasificacionColorClass, Cliente } from '../types/cobraya';
 import { Plus, Search, User, Mail, Phone, MapPin, AlertCircle, Filter, X, Power, Pencil, ShieldAlert } from 'lucide-react';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
+import { ExportMenu, ExportColumn } from '../components/ui/ExportMenu';
 
 export function Borrowers() {
   const navigate = useNavigate();
@@ -74,6 +75,20 @@ export function Borrowers() {
   const delinquentNames = new Set(delinquencyDetails?.map(d => d.cliente));
   const clasificacionPorCliente = new Map(clasificaciones?.map((c) => [c.clienteId, c]));
 
+  const borrowerExportColumns: ExportColumn<Cliente>[] = [
+    { header: 'Nombre', value: (b) => b.nombre },
+    { header: 'Apellido', value: (b) => b.apellido ?? '' },
+    { header: 'Identidad', value: (b) => b.documento },
+    { header: 'Teléfono', value: (b) => b.telefono ?? '' },
+    { header: 'Domicilio', value: (b) => b.domicilio ?? '' },
+    { header: 'Correo', value: (b) => b.correo ?? '' },
+    { header: 'Estado', value: (b) => b.activo ? 'Activo' : 'Inactivo' },
+    { header: 'Clasificación', value: (b) => {
+      const c = clasificacionPorCliente.get(b.id);
+      return c ? getClasificacionLabel(c.clasificacion) : '';
+    } },
+  ];
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -99,6 +114,7 @@ export function Borrowers() {
           <p className="text-muted">Directorio de prestatarios registrados</p>
         </div>
         <div className="flex gap-2">
+            <ExportMenu data={borrowers} columns={borrowerExportColumns} filenameBase="Clientes" title="Reporte de Clientes" />
             <button
               onClick={() => navigate('/borrowers/create')}
               className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"

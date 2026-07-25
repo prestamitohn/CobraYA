@@ -8,6 +8,19 @@ import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 import { useLoanAliases } from '../hooks/useLoanAliases';
 import { formatCurrency, formatDate } from '../utils/formatters';
+import { ExportMenu, ExportColumn } from '../components/ui/ExportMenu';
+import type { Prestamo } from '../types/cobraya';
+
+const LOAN_EXPORT_COLUMNS: ExportColumn<Prestamo>[] = [
+  { header: 'Cliente', value: (l) => l.cliente ? `${l.cliente.nombre} ${l.cliente.apellido ?? ''}`.trim() : 'N/A' },
+  { header: 'Identidad', value: (l) => l.cliente?.documento ?? '' },
+  { header: 'Monto', value: (l) => l.montoOtorgado },
+  { header: 'Tasa (%)', value: (l) => l.tasaInteres },
+  { header: 'Frecuencia', value: (l) => l.frecuenciaCobro },
+  { header: 'Sistema', value: (l) => l.sistemaAmortizacion },
+  { header: 'Fecha Otorgamiento', value: (l) => formatDate(l.fechaOtorgamiento) },
+  { header: 'Estado', value: (l) => getEstadoPrestamoLabel(l.estado) },
+];
 
 export function Loans() {
   const navigate = useNavigate();
@@ -101,6 +114,7 @@ export function Loans() {
           <p className="text-muted">Gestiona y visualiza todos los préstamos activos</p>
         </div>
         <div className="flex gap-2">
+            <ExportMenu data={loans} columns={LOAN_EXPORT_COLUMNS} filenameBase="Prestamos" title="Reporte de Préstamos" />
             <Link
             to="/loans/create"
             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"

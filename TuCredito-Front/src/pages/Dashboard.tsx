@@ -19,6 +19,7 @@ import {
   getRecentTransactions,
   getCashFlowProjection,
   getWeeklyCollections,
+  getWeeklyPortfolioProjection,
 } from '../services/dashboardService';
 import { Link } from 'react-router-dom';
 
@@ -56,6 +57,15 @@ export function Dashboard() {
   const { data: recentTransactions } = useQuery({ queryKey: ['recentTransactions'], queryFn: getRecentTransactions });
   const { data: cashFlowProjection } = useQuery({ queryKey: ['cashFlowProjection'], queryFn: getCashFlowProjection });
   const { data: weeklyCollections } = useQuery({ queryKey: ['weeklyCollections'], queryFn: getWeeklyCollections });
+  const { data: weeklyProjection } = useQuery({ queryKey: ['weeklyPortfolioProjection'], queryFn: () => getWeeklyPortfolioProjection() });
+
+  const weeklyProjectionTotals = weeklyProjection?.reduce((acc, w) => ({
+    cantidadCuotas: acc.cantidadCuotas + w.cantidadCuotas,
+    capital: acc.capital + w.capital,
+    interes: acc.interes + w.interes,
+    serviciosAdministrativos: acc.serviciosAdministrativos + w.serviciosAdministrativos,
+    total: acc.total + w.total,
+  }), { cantidadCuotas: 0, capital: 0, interes: 0, serviciosAdministrativos: 0, total: 0 });
 
   const clientesAlDia = kpis ? Math.max(kpis.totalClientes - kpis.clientesEnMora, 0) : 0;
   const clientRiskComposition = kpis && kpis.totalClientes > 0
@@ -461,6 +471,56 @@ export function Dashboard() {
                 <ChartEmptyState message="No hay datos de ingresos semanales" />
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Proyección Semanal de Cartera */}
+      <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-6">
+          <h3 className="text-lg font-semibold text-main">Proyección Semanal de Cartera</h3>
+          <InfoTooltip content="Desglose semana a semana (lunes a domingo) de lo que se espera cobrar según el cronograma de cuotas pendientes y de gastos administrativos, separado en capital, interés y servicios." />
+        </div>
+        <div className="overflow-x-auto">
+          {weeklyProjection && weeklyProjection.length > 0 ? (
+            <table className="w-full text-left text-sm">
+              <thead className="bg-surfaceHighlight text-muted">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Semana</th>
+                  <th className="px-4 py-3 font-medium text-right">Cant. Cuotas</th>
+                  <th className="px-4 py-3 font-medium text-right">Capital</th>
+                  <th className="px-4 py-3 font-medium text-right">Interés</th>
+                  <th className="px-4 py-3 font-medium text-right">Servicios Adm.</th>
+                  <th className="px-4 py-3 font-medium text-right">Total a Cobrar</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {weeklyProjection.map((w, i) => (
+                  <tr key={i} className="hover:bg-surfaceHighlight/50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-main">{w.etiqueta}</td>
+                    <td className="px-4 py-3 text-muted text-right">{w.cantidadCuotas}</td>
+                    <td className="px-4 py-3 text-muted text-right">{formatCurrency(w.capital)}</td>
+                    <td className="px-4 py-3 text-muted text-right">{formatCurrency(w.interes)}</td>
+                    <td className="px-4 py-3 text-muted text-right">{formatCurrency(w.serviciosAdministrativos)}</td>
+                    <td className="px-4 py-3 font-semibold text-main text-right">{formatCurrency(w.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {weeklyProjectionTotals && (
+                <tfoot className="border-t-2 border-border bg-surfaceHighlight/50">
+                  <tr>
+                    <td className="px-4 py-3 font-bold text-main">Total</td>
+                    <td className="px-4 py-3 font-bold text-main text-right">{weeklyProjectionTotals.cantidadCuotas}</td>
+                    <td className="px-4 py-3 font-bold text-main text-right">{formatCurrency(weeklyProjectionTotals.capital)}</td>
+                    <td className="px-4 py-3 font-bold text-main text-right">{formatCurrency(weeklyProjectionTotals.interes)}</td>
+                    <td className="px-4 py-3 font-bold text-main text-right">{formatCurrency(weeklyProjectionTotals.serviciosAdministrativos)}</td>
+                    <td className="px-4 py-3 font-bold text-primary-500 text-right">{formatCurrency(weeklyProjectionTotals.total)}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          ) : (
+            <ChartEmptyState message="No hay cuotas pendientes proyectadas" />
+          )}
         </div>
       </div>
 

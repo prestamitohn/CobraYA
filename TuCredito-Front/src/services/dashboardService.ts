@@ -298,6 +298,61 @@ export async function getCashFlowProjection(): Promise<GraficoDatoDTO[]> {
   return semanas.map(({ etiqueta, valor }) => ({ etiqueta, valor }));
 }
 
+export interface ProyeccionSemanalRow {
+  etiqueta: string;
+  cantidadCuotas: number;
+  capital: number;
+  interes: number;
+  serviciosAdministrativos: number;
+  total: number;
+}
+
+/** Proyección semana a semana (lunes a domingo) de lo que se espera cobrar: cuotas pendientes + cronograma de gastos administrativos pendientes, desglosado por capital/interés/servicios. */
+export async function getWeeklyPortfolioProjection(semanas = 6): Promise<ProyeccionSemanalRow[]> {
+  const [{ data: cuotas, error: e1 }, { data: gastos, error: e2 }] = await Promise.all([
+    supabase.from('cuotas').select('monto, interes, fecha_vto').eq('estado', 'pendiente'),
+    supabase.from('gastos_administrativos').select('monto, fecha_vto').eq('estado', 'pendiente'),
+  ]);
+  if (e1) throw e1;
+  if (e2) throw e2;
+
+  const startOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const hoy = startOfDay(new Date());
+
+  const buckets = Array.from({ length: semanas }, (_, i) => {
+    const inicio = new Date(hoy.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+    const fin = new Date(inicio.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return { inicio, fin, cantidadCuotas: 0, capital: 0, interes: 0, serviciosAdministrativos: 0 };
+  });
+
+  for (const c of cuotas ?? []) {
+    const t = new Date(`${c.fecha_vto}T00:00:00Z`).getTime();
+    const bucket = buckets.find((b) => t >= b.inicio.getTime() && t < b.fin.getTime());
+    if (!bucket) continue;
+    const interes = Number(c.interes ?? 0);
+    bucket.cantidadCuotas += 1;
+    bucket.interes += interes;
+    bucket.capital += Number(c.monto) - interes;
+  }
+
+  for (const g of gastos ?? []) {
+    const t = new Date(`${g.fecha_vto}T00:00:00Z`).getTime();
+    const bucket = buckets.find((b) => t >= b.inicio.getTime() && t < b.fin.getTime());
+    if (bucket) bucket.serviciosAdministrativos += Number(g.monto);
+  }
+
+  const fmt = (d: Date) => `${d.getUTCDate().toString().padStart(2, '0')}/${(d.getUTCMonth() + 1).toString().padStart(2, '0')}`;
+
+  return buckets.map((b) => ({
+    etiqueta: `${fmt(b.inicio)} - ${fmt(new Date(b.fin.getTime() - 24 * 60 * 60 * 1000))}`,
+    cantidadCuotas: b.cantidadCuotas,
+    capital: b.capital,
+    interes: b.interes,
+    serviciosAdministrativos: b.serviciosAdministrativos,
+    total: b.capital + b.interes + b.serviciosAdministrativos,
+  }));
+}
+
 export async function getDelinquencyDetails(): Promise<MorosidadDetalleDTO[]> {
   const { data, error } = await supabase
     .from('cuotas')
