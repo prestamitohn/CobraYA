@@ -26,7 +26,7 @@ const loanSchema = z.object({
   fechaOtorgamiento: z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Fecha inválida' }),
   tieneGastoAdministrativo: z.boolean(),
   gastoAdministrativoMonto: z.number().optional(),
-  gastoAdministrativoFrecuencia: z.enum(['semanal', 'mensual']).optional(),
+  gastoAdministrativoFrecuencia: z.enum(['semanal', 'mensual', 'por_cuota']).optional(),
 }).refine(
   (data) => !data.tieneGastoAdministrativo || (data.gastoAdministrativoMonto ?? 0) > 0,
   { message: 'Indicá el monto del gasto administrativo', path: ['gastoAdministrativoMonto'] },
@@ -54,7 +54,7 @@ export function LoanForm() {
       cantidadCuotas: 12,
       fechaOtorgamiento: new Date().toISOString().split('T')[0],
       tieneGastoAdministrativo: false,
-      gastoAdministrativoFrecuencia: 'mensual',
+      gastoAdministrativoFrecuencia: 'por_cuota',
     }
   });
 

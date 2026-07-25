@@ -59,10 +59,12 @@ export function LoanDetails() {
   });
 
   const tieneGastoAdministrativo = !!loan?.gastoAdministrativoMonto;
+  const gastoEsPorCuota = loan?.gastoAdministrativoFrecuencia === 'por_cuota';
+  const tieneCronogramaGastoAdministrativo = tieneGastoAdministrativo && !gastoEsPorCuota;
   const { data: gastosAdministrativos } = useQuery({
     queryKey: ['gastosAdministrativos', loanId],
     queryFn: () => getGastosAdministrativos(loanId),
-    enabled: !!loanId && tieneGastoAdministrativo,
+    enabled: !!loanId && tieneCronogramaGastoAdministrativo,
   });
 
   const cuotasSaldadas = installments?.filter((i) => i.estado === 'saldada').length ?? 0;
@@ -214,7 +216,9 @@ export function LoanDetails() {
                 <div className="flex justify-between">
                   <span className="text-muted">Gasto Administrativo</span>
                   <span className="text-main font-medium">
-                    {formatCurrency(loan.gastoAdministrativoMonto!)} / <span className="capitalize">{loan.gastoAdministrativoFrecuencia}</span>
+                    {formatCurrency(loan.gastoAdministrativoMonto!)} {gastoEsPorCuota
+                      ? '(incluido en cada cuota)'
+                      : <>/ <span className="capitalize">{loan.gastoAdministrativoFrecuencia}</span></>}
                   </span>
                 </div>
               )}
@@ -323,7 +327,7 @@ export function LoanDetails() {
           </div>
         </div>
 
-        {tieneGastoAdministrativo && (
+        {tieneCronogramaGastoAdministrativo && (
           <div className="md:col-span-3 glass-panel rounded-xl border border-border overflow-hidden">
             <div className="p-6 border-b border-border">
               <h2 className="text-lg font-semibold text-main flex items-center gap-2">

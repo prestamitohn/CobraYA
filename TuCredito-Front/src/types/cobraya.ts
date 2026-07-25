@@ -8,7 +8,7 @@ export type EstadoPrestamo = 'activo' | 'finalizado' | 'eliminado' | 'archivado'
 export type EstadoCuota = 'pendiente' | 'saldada' | 'vencida' | 'reprogramada';
 export type SistemaAmortizacion = 'frances' | 'aleman' | 'americano' | 'directo';
 export type FrecuenciaCobro = 'diario' | 'semanal' | 'quincenal' | 'mensual';
-export type FrecuenciaGastoAdministrativo = 'semanal' | 'mensual';
+export type FrecuenciaGastoAdministrativo = 'semanal' | 'mensual' | 'por_cuota';
 export type EstadoSuscripcion = 'prueba' | 'activa' | 'suspendida' | 'cancelada';
 
 export interface Usuario {
@@ -94,8 +94,9 @@ export interface GastoAdministrativo {
 }
 
 export const FRECUENCIAS_GASTO_ADMINISTRATIVO: { value: FrecuenciaGastoAdministrativo; label: string }[] = [
-  { value: 'semanal', label: 'Semanal' },
-  { value: 'mensual', label: 'Mensual' },
+  { value: 'por_cuota', label: 'Incluido en cada cuota (ej. interés + servicio en el mismo cobro)' },
+  { value: 'semanal', label: 'Cronograma aparte — Semanal' },
+  { value: 'mensual', label: 'Cronograma aparte — Mensual' },
 ];
 
 export interface Pago {
