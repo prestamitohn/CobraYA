@@ -4,11 +4,13 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { getLoanById, deleteLoan } from '../services/loanService';
 import { getInstallments } from '../services/installmentService';
 import { getGastosAdministrativos } from '../services/gastoAdministrativoService';
-import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt } from 'lucide-react';
+import { getMultasByPrestamo } from '../services/multaService';
+import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { getEstadoPrestamoLabel, getEstadoCuotaLabel } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { PaymentModal, PagableItem } from '../components/payments/PaymentModal';
+import { AplicarMultaModal } from '../components/payments/AplicarMultaModal';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 import { useLoanAliases } from '../hooks/useLoanAliases';
@@ -21,10 +23,11 @@ export function LoanDetails() {
   const loanId = id || '';
 
   const [selectedItem, setSelectedItem] = useState<PagableItem | null>(null);
-  const [selectedKind, setSelectedKind] = useState<'cuota' | 'gasto'>('cuota');
+  const [selectedKind, setSelectedKind] = useState<'cuota' | 'gasto' | 'multa'>('cuota');
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isAdvancePayment, setIsAdvancePayment] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [multaCuota, setMultaCuota] = useState<{ id: string; nroCuota: number; monto: number } | null>(null);
 
   const [isEditingAlias, setIsEditingAlias] = useState(false);
   const [aliasInput, setAliasInput] = useState('');
@@ -67,11 +70,18 @@ export function LoanDetails() {
     enabled: !!loanId && tieneCronogramaGastoAdministrativo,
   });
 
+  const tieneMulta = !!loan?.multaPorAtrasoMonto;
+  const { data: multas } = useQuery({
+    queryKey: ['multas', loanId],
+    queryFn: () => getMultasByPrestamo(loanId),
+    enabled: !!loanId,
+  });
+
   const cuotasSaldadas = installments?.filter((i) => i.estado === 'saldada').length ?? 0;
   const lastPendingInstallment = installments?.filter(i => i.estado === 'pendiente')
     .sort((a, b) => b.nroCuota - a.nroCuota)[0];
 
-  const openPayment = (item: PagableItem, kind: 'cuota' | 'gasto', advance = false) => {
+  const openPayment = (item: PagableItem, kind: 'cuota' | 'gasto' | 'multa', advance = false) => {
     setSelectedItem(item);
     setSelectedKind(kind);
     setIsAdvancePayment(advance);
@@ -300,18 +310,29 @@ export function LoanDetails() {
                       </StatusBadge>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {cuota.estado !== 'saldada' && (
-                        <button
-                          onClick={() => openPayment(
-                            { id: cuota.id, numero: cuota.nroCuota, monto: cuota.monto, saldoPendiente: cuota.saldoPendiente ?? null },
-                            'cuota',
-                          )}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors"
-                        >
-                          <CreditCard className="h-3.5 w-3.5" />
-                          Pagar
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {cuota.estado === 'vencida' && (
+                          <button
+                            onClick={() => setMultaCuota({ id: cuota.id, nroCuota: cuota.nroCuota, monto: loan.multaPorAtrasoMonto ?? 0 })}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg text-xs font-medium transition-colors"
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            No Pagó
+                          </button>
+                        )}
+                        {cuota.estado !== 'saldada' && (
+                          <button
+                            onClick={() => openPayment(
+                              { id: cuota.id, numero: cuota.nroCuota, monto: cuota.monto, saldoPendiente: cuota.saldoPendiente ?? null },
+                              'cuota',
+                            )}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" />
+                            Pagar
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -394,7 +415,83 @@ export function LoanDetails() {
             </div>
           </div>
         )}
+
+        {(tieneMulta || !!multas?.length) && (
+          <div className="md:col-span-3 glass-panel rounded-xl border border-border overflow-hidden">
+            <div className="p-6 border-b border-border">
+              <h2 className="text-lg font-semibold text-main flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-red-500" />
+                Multas
+              </h2>
+              <p className="text-sm text-muted mt-1">
+                Cargos por mora, aplicados automáticamente al vencer una cuota o manualmente al marcar "No Pagó".
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-surfaceHighlight text-muted">
+                  <tr>
+                    <th className="px-6 py-3 font-medium">Motivo</th>
+                    <th className="px-6 py-3 font-medium">Fecha Incumplimiento</th>
+                    <th className="px-6 py-3 font-medium">Monto</th>
+                    <th className="px-6 py-3 font-medium">Saldo</th>
+                    <th className="px-6 py-3 font-medium">Estado</th>
+                    <th className="px-6 py-3 font-medium text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {multas?.map((multa) => (
+                    <tr key={multa.id} className="hover:bg-surfaceHighlight/50 transition-colors">
+                      <td className="px-6 py-4 text-main">{multa.motivo}</td>
+                      <td className="px-6 py-4 text-muted">{formatDate(multa.fechaIncumplimiento)}</td>
+                      <td className="px-6 py-4 text-main">{formatCurrency(multa.monto)}</td>
+                      <td className="px-6 py-4 text-main">{formatCurrency(multa.saldoPendiente)}</td>
+                      <td className="px-6 py-4">
+                        <StatusBadge variant={
+                          multa.estado === 'saldada' ? 'success' :
+                          multa.estado === 'pendiente' ? 'warning' :
+                          'error'
+                        }>
+                          {getEstadoCuotaLabel(multa.estado)}
+                        </StatusBadge>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {multa.estado !== 'saldada' && (
+                          <button
+                            onClick={() => openPayment(
+                              { id: multa.id, numero: 0, monto: multa.monto, saldoPendiente: multa.saldoPendiente },
+                              'multa',
+                            )}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" />
+                            Pagar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {!multas?.length && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-muted">
+                        No hay multas registradas para este préstamo.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
+
+      <AplicarMultaModal
+        isOpen={!!multaCuota}
+        onClose={() => setMultaCuota(null)}
+        cuotaId={multaCuota?.id ?? null}
+        nroCuota={multaCuota?.nroCuota}
+        montoSugerido={multaCuota?.monto}
+      />
 
       <PaymentModal
         isOpen={isPaymentModalOpen}

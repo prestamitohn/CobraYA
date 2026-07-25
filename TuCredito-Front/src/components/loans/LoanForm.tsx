@@ -8,7 +8,7 @@ import { simulateLoan, createLoan } from '../../services/loanService';
 import { getBorrowers } from '../../services/borrowerService';
 import type { SimulacionResultado } from '../../lib/amortizacion';
 import { SISTEMAS_AMORTIZACION, FRECUENCIAS_COBRO, FRECUENCIAS_GASTO_ADMINISTRATIVO } from '../../types/cobraya';
-import { Loader2, Calculator, CheckCircle, User, Search, Receipt } from 'lucide-react';
+import { Loader2, Calculator, CheckCircle, User, Search, Receipt, AlertTriangle } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { CurrencyInput } from '../ui/CurrencyInput';
@@ -27,9 +27,14 @@ const loanSchema = z.object({
   tieneGastoAdministrativo: z.boolean(),
   gastoAdministrativoMonto: z.number().optional(),
   gastoAdministrativoFrecuencia: z.enum(['semanal', 'mensual', 'por_cuota']).optional(),
+  tieneMulta: z.boolean(),
+  multaPorAtrasoMonto: z.number().optional(),
 }).refine(
   (data) => !data.tieneGastoAdministrativo || (data.gastoAdministrativoMonto ?? 0) > 0,
   { message: 'Indicá el monto del gasto administrativo', path: ['gastoAdministrativoMonto'] },
+).refine(
+  (data) => !data.tieneMulta || (data.multaPorAtrasoMonto ?? 0) > 0,
+  { message: 'Indicá el monto de la multa por atraso', path: ['multaPorAtrasoMonto'] },
 );
 
 type LoanFormData = z.infer<typeof loanSchema>;
@@ -55,10 +60,12 @@ export function LoanForm() {
       fechaOtorgamiento: new Date().toISOString().split('T')[0],
       tieneGastoAdministrativo: false,
       gastoAdministrativoFrecuencia: 'por_cuota',
+      tieneMulta: false,
     }
   });
 
   const tieneGastoAdministrativo = watch('tieneGastoAdministrativo');
+  const tieneMulta = watch('tieneMulta');
 
   const { data: borrowers } = useQuery({
     queryKey: ['borrowers'],
@@ -123,6 +130,7 @@ export function LoanForm() {
       moneda: 'HNL',
       gastoAdministrativoMonto: pendingData.tieneGastoAdministrativo ? Number(pendingData.gastoAdministrativoMonto) : null,
       gastoAdministrativoFrecuencia: pendingData.tieneGastoAdministrativo ? pendingData.gastoAdministrativoFrecuencia : null,
+      multaPorAtrasoMonto: pendingData.tieneMulta ? Number(pendingData.multaPorAtrasoMonto) : null,
     });
   };
 
@@ -293,6 +301,33 @@ export function LoanForm() {
                     ))}
                   </select>
                 </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-border bg-surfaceHighlight/30 p-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-main cursor-pointer">
+              <input type="checkbox" {...register('tieneMulta')} className="rounded border-border text-primary-500 focus:ring-primary-500" />
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              Multa por Atraso
+            </label>
+            <p className="mt-1 text-xs text-muted">Monto fijo que se aplica automáticamente a cada cuota que caiga en mora (se puede aplicar manualmente también).</p>
+
+            {tieneMulta && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-muted">Monto (L)</label>
+                <Controller
+                  control={control}
+                  name="multaPorAtrasoMonto"
+                  render={({ field }) => (
+                    <CurrencyInput
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      className={`mt-1 block w-full rounded-xl border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:ring-1 transition-all duration-200 ${errors.multaPorAtrasoMonto ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border focus:border-primary-500 focus:ring-primary-500'}`}
+                    />
+                  )}
+                />
+                {errors.multaPorAtrasoMonto && <p className="mt-1 text-xs text-red-400">{errors.multaPorAtrasoMonto.message}</p>}
               </div>
             )}
           </div>

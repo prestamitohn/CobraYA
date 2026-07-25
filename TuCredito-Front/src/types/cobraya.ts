@@ -67,6 +67,7 @@ export interface Prestamo {
   moneda: string;
   gastoAdministrativoMonto?: number | null;
   gastoAdministrativoFrecuencia?: FrecuenciaGastoAdministrativo | null;
+  multaPorAtrasoMonto?: number | null;
   cliente?: Pick<Cliente, 'id' | 'nombre' | 'apellido' | 'documento'> | null;
 }
 
@@ -98,6 +99,19 @@ export const FRECUENCIAS_GASTO_ADMINISTRATIVO: { value: FrecuenciaGastoAdministr
   { value: 'semanal', label: 'Cronograma aparte — Semanal' },
   { value: 'mensual', label: 'Cronograma aparte — Mensual' },
 ];
+
+/** Multa por atraso — registro aparte con motivo y fecha, ligado a una cuota vencida. */
+export interface Multa {
+  id: string;
+  prestamoId: string;
+  cuotaId: string;
+  monto: number;
+  saldoPendiente: number;
+  motivo: string;
+  fechaIncumplimiento: string;
+  estado: EstadoCuota;
+  aplicadaAutomaticamente: boolean;
+}
 
 export interface Pago {
   id: string;

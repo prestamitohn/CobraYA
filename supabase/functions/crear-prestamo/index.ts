@@ -26,7 +26,8 @@ interface CrearPrestamoPayload {
   moneda?: string;
   cobradorId?: string | null;
   gastoAdministrativoMonto?: number | null;
-  gastoAdministrativoFrecuencia?: 'semanal' | 'mensual' | null;
+  gastoAdministrativoFrecuencia?: 'semanal' | 'mensual' | 'por_cuota' | null;
+  multaPorAtrasoMonto?: number | null;
 }
 
 function jsonResponse(body: unknown, status: number): Response {
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
   const {
     clienteId, montoPrestamo, cantidadCuotas, tasaInteres,
     sistemaAmortizacion, frecuenciaCobro, fechaOtorgamiento, moneda, cobradorId,
-    gastoAdministrativoMonto, gastoAdministrativoFrecuencia,
+    gastoAdministrativoMonto, gastoAdministrativoFrecuencia, multaPorAtrasoMonto,
   } = payload;
 
   if (!clienteId || !montoPrestamo || !cantidadCuotas || tasaInteres === undefined
@@ -96,7 +97,6 @@ Deno.serve(async (req) => {
     monto: c.monto,
     interes: c.interes,
     capital: c.capital,
-    saldo_pendiente: c.saldoRestante,
     fecha_vto: c.fechaVencimiento.toISOString().slice(0, 10),
   }));
 
@@ -114,6 +114,7 @@ Deno.serve(async (req) => {
     p_cuotas: cuotasPayload,
     p_gasto_administrativo_monto: gastoAdministrativoMonto ?? null,
     p_gasto_administrativo_frecuencia: gastoAdministrativoFrecuencia ?? null,
+    p_multa_por_atraso_monto: multaPorAtrasoMonto ?? null,
   });
 
   if (error) {

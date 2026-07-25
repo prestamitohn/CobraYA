@@ -23,10 +23,11 @@ interface PrestamoRow {
   moneda: string;
   gasto_administrativo_monto: number | null;
   gasto_administrativo_frecuencia: FrecuenciaGastoAdministrativo | null;
+  multa_por_atraso_monto: number | null;
   cliente?: { id: string; nombre: string; apellido: string | null; documento: string } | null;
 }
 
-const PRESTAMO_SELECT = 'id, cliente_id, cobrador_id, monto_otorgado, saldo_restante, cantidad_cuotas, tasa_interes, sistema_amortizacion, frecuencia_cobro, estado, fecha_otorgamiento, fecha_primer_vto, fecha_fin_estimada, moneda, gasto_administrativo_monto, gasto_administrativo_frecuencia, cliente:clientes(id, nombre, apellido, documento)';
+const PRESTAMO_SELECT = 'id, cliente_id, cobrador_id, monto_otorgado, saldo_restante, cantidad_cuotas, tasa_interes, sistema_amortizacion, frecuencia_cobro, estado, fecha_otorgamiento, fecha_primer_vto, fecha_fin_estimada, moneda, gasto_administrativo_monto, gasto_administrativo_frecuencia, multa_por_atraso_monto, cliente:clientes(id, nombre, apellido, documento)';
 
 function mapPrestamo(row: PrestamoRow): Prestamo {
   return {
@@ -46,6 +47,7 @@ function mapPrestamo(row: PrestamoRow): Prestamo {
     moneda: row.moneda,
     gastoAdministrativoMonto: row.gasto_administrativo_monto,
     gastoAdministrativoFrecuencia: row.gasto_administrativo_frecuencia,
+    multaPorAtrasoMonto: row.multa_por_atraso_monto,
     cliente: row.cliente,
   };
 }
@@ -67,6 +69,7 @@ export interface CreateLoanInput {
   cobradorId?: string | null;
   gastoAdministrativoMonto?: number | null;
   gastoAdministrativoFrecuencia?: FrecuenciaGastoAdministrativo | null;
+  multaPorAtrasoMonto?: number | null;
 }
 
 export async function createLoan(input: CreateLoanInput): Promise<{ prestamoId: string; simulacion: SimulacionResultado }> {

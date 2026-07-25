@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { registrarPago, getMediosPago } from '../../services/paymentService';
 import { registrarPagoGastoAdministrativo } from '../../services/gastoAdministrativoService';
+import { registrarPagoMulta } from '../../services/multaService';
 import { useToast } from '../../context/ToastContext';
 import { X, Banknote, Calendar, CreditCard, Percent, Save, Zap } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
@@ -19,7 +20,7 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: PagableItem | null;
-  kind?: 'cuota' | 'gasto';
+  kind?: 'cuota' | 'gasto' | 'multa';
   isAdvance?: boolean;
 }
 
@@ -51,27 +52,23 @@ export function PaymentModal({ isOpen, onClose, item, kind = 'cuota', isAdvance 
   }, [mediosPago, medioPagoId]);
 
   const mutation = useMutation({
-    mutationFn: () => kind === 'gasto'
-      ? registrarPagoGastoAdministrativo({
-          gastoAdministrativoId: item!.id,
-          medioPagoId,
-          monto: Number(monto),
-          descuento: Number(descuento || 0),
-          recargo: Number(recargo || 0),
-          fechaPago,
-        })
-      : registrarPago({
-          cuotaId: item!.id,
-          medioPagoId,
-          monto: Number(monto),
-          descuento: Number(descuento || 0),
-          recargo: Number(recargo || 0),
-          fechaPago,
-        }),
+    mutationFn: () => {
+      const pagoBase = {
+        medioPagoId,
+        monto: Number(monto),
+        descuento: Number(descuento || 0),
+        recargo: Number(recargo || 0),
+        fechaPago,
+      };
+      if (kind === 'gasto') return registrarPagoGastoAdministrativo({ gastoAdministrativoId: item!.id, ...pagoBase });
+      if (kind === 'multa') return registrarPagoMulta({ multaId: item!.id, ...pagoBase });
+      return registrarPago({ cuotaId: item!.id, ...pagoBase });
+    },
     onSuccess: () => {
       addToast(isAdvance ? 'Pago anticipado registrado correctamente' : 'Pago registrado exitosamente', 'success');
       queryClient.invalidateQueries({ queryKey: ['installments'] });
       queryClient.invalidateQueries({ queryKey: ['gastosAdministrativos'] });
+      queryClient.invalidateQueries({ queryKey: ['multas'] });
       queryClient.invalidateQueries({ queryKey: ['loan'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['loans'] });
@@ -90,7 +87,7 @@ export function PaymentModal({ isOpen, onClose, item, kind = 'cuota', isAdvance 
 
   if (!isOpen || !item) return null;
 
-  const titulo = kind === 'gasto' ? `Gasto Administrativo #${item.numero}` : `Cuota #${item.numero}`;
+  const titulo = kind === 'gasto' ? `Gasto Administrativo #${item.numero}` : kind === 'multa' ? `Multa por Atraso` : `Cuota #${item.numero}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
