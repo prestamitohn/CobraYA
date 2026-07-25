@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend
 } from 'recharts';
-import { Banknote, AlertTriangle, TrendingUp, Users, Plus, UserPlus, FileText, ArrowRight } from 'lucide-react';
+import { Banknote, AlertTriangle, TrendingUp, Users, Plus, UserPlus, FileText, ArrowRight, UsersRound, UserX, PiggyBank, Wallet, Percent, Receipt, Gavel } from 'lucide-react';
 import { KPIWidget } from '../components/dashboard/KPIWidget';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../hooks/useTheme';
@@ -17,7 +17,8 @@ import {
   getMonthlyCollections,
   getUpcomingInstallments,
   getRecentTransactions,
-  getCashFlowProjection
+  getCashFlowProjection,
+  getWeeklyCollections,
 } from '../services/dashboardService';
 import { Link } from 'react-router-dom';
 
@@ -54,6 +55,15 @@ export function Dashboard() {
   const { data: upcomingInstallments } = useQuery({ queryKey: ['upcomingInstallments'], queryFn: getUpcomingInstallments });
   const { data: recentTransactions } = useQuery({ queryKey: ['recentTransactions'], queryFn: getRecentTransactions });
   const { data: cashFlowProjection } = useQuery({ queryKey: ['cashFlowProjection'], queryFn: getCashFlowProjection });
+  const { data: weeklyCollections } = useQuery({ queryKey: ['weeklyCollections'], queryFn: getWeeklyCollections });
+
+  const clientesAlDia = kpis ? Math.max(kpis.totalClientes - kpis.clientesEnMora, 0) : 0;
+  const clientRiskComposition = kpis && kpis.totalClientes > 0
+    ? [
+        { etiqueta: 'Al día', valor: clientesAlDia },
+        { etiqueta: 'En mora', valor: kpis.clientesEnMora },
+      ]
+    : [];
 
   return (
     <div className="space-y-8">
@@ -128,6 +138,94 @@ export function Dashboard() {
             loading={isLoadingKpis}
             />
         </Link>
+      </div>
+
+      {/* Panel Ejecutivo: clientes y ganancias */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <Link to="/borrowers" className="block h-full transition-transform hover:scale-[1.02] cursor-pointer">
+            <KPIWidget
+            title="Total Clientes"
+            value={kpis ? kpis.totalClientes : '...'}
+            icon={UsersRound}
+            iconColor="bg-primary-500/10 text-primary-400"
+            description={`Clientes registrados en total. ${kpis ? kpis.clientesActivos : '...'} activos.`}
+            className="h-full"
+            loading={isLoadingKpis}
+            />
+        </Link>
+        <Link to="/borrowers" className="block h-full transition-transform hover:scale-[1.02] cursor-pointer">
+            <KPIWidget
+            title="Clientes en Mora"
+            value={kpis ? kpis.clientesEnMora : '...'}
+            icon={UserX}
+            iconColor="bg-red-500/10 text-red-400"
+            description="Cantidad de clientes con al menos una cuota vencida sin pagar."
+            className="h-full"
+            loading={isLoadingKpis}
+            />
+        </Link>
+        <Link to="/payments" className="block h-full transition-transform hover:scale-[1.02] cursor-pointer">
+            <KPIWidget
+            title="Capital Recuperado"
+            value={kpis ? formatCurrency(kpis.capitalRecuperado) : '...'}
+            icon={PiggyBank}
+            iconColor="bg-blue-500/10 text-blue-400"
+            description="Porción de capital (sin intereses) ya cobrada de todos los préstamos otorgados."
+            className="h-full"
+            loading={isLoadingKpis}
+            />
+        </Link>
+        <Link to="/payments" className="block h-full transition-transform hover:scale-[1.02] cursor-pointer">
+            <KPIWidget
+            title="Ganancia Neta"
+            value={kpis ? formatCurrency(kpis.gananciaNeta) : '...'}
+            icon={Wallet}
+            iconColor="bg-emerald-500/10 text-emerald-400"
+            description="Intereses + multas + servicios administrativos cobrados (no incluye el capital recuperado)."
+            className="h-full"
+            loading={isLoadingKpis}
+            />
+        </Link>
+      </div>
+
+      {/* Indicadores Financieros compactos */}
+      <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-6">
+          <h3 className="text-lg font-semibold text-main">Indicadores Financieros</h3>
+          <InfoTooltip content="Desglose de la ganancia por origen (intereses, multas, servicios administrativos) y rentabilidad sobre el capital prestado histórico en distintas ventanas de tiempo." />
+        </div>
+        <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="p-2.5 rounded-lg bg-primary-500/10 text-primary-400"><Percent className="h-5 w-5" /></div>
+            <span className="text-lg font-bold text-main">{kpis ? formatCurrency(kpis.gananciaIntereses) : '...'}</span>
+            <span className="text-xs text-muted">Ganancia por Intereses</span>
+          </div>
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="p-2.5 rounded-lg bg-red-500/10 text-red-400"><Gavel className="h-5 w-5" /></div>
+            <span className="text-lg font-bold text-main">{kpis ? formatCurrency(kpis.gananciaMultas) : '...'}</span>
+            <span className="text-xs text-muted">Ganancia por Multas</span>
+          </div>
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="p-2.5 rounded-lg bg-accent-gold/10 text-accent-goldDark"><Receipt className="h-5 w-5" /></div>
+            <span className="text-lg font-bold text-main">{kpis ? formatCurrency(kpis.gananciaServicios) : '...'}</span>
+            <span className="text-xs text-muted">Ganancia por Servicios</span>
+          </div>
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400"><TrendingUp className="h-5 w-5" /></div>
+            <span className="text-lg font-bold text-main">{kpis ? `${kpis.rentabilidadSemanal}%` : '...'}</span>
+            <span className="text-xs text-muted">Rentabilidad Semanal</span>
+          </div>
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400"><TrendingUp className="h-5 w-5" /></div>
+            <span className="text-lg font-bold text-main">{kpis ? `${kpis.rentabilidadMensual}%` : '...'}</span>
+            <span className="text-xs text-muted">Rentabilidad Mensual</span>
+          </div>
+          <div className="flex flex-col items-center text-center gap-2">
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400"><TrendingUp className="h-5 w-5" /></div>
+            <span className="text-lg font-bold text-main">{kpis ? `${kpis.rentabilidadAnual}%` : '...'}</span>
+            <span className="text-xs text-muted">Rentabilidad Anual</span>
+          </div>
+        </div>
       </div>
 
       {/* Charts Grid */}
@@ -288,6 +386,79 @@ export function Dashboard() {
             </ResponsiveContainer>
             ) : (
                 <ChartEmptyState message="No hay préstamos activos" />
+            )}
+          </div>
+        </div>
+
+        {/* Client Risk Composition (Pie Chart) */}
+        <div className="glass-panel rounded-2xl p-6 relative z-10 overflow-visible">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-main">Clientes: Al Día vs Mora</h3>
+                    <InfoTooltip content="Proporción de clientes activos que están al día en sus pagos vs. clientes con al menos una cuota vencida sin pagar." />
+                </div>
+                <p className="text-sm text-muted">Composición de riesgo de la cartera de clientes</p>
+            </div>
+          </div>
+          <div className="h-[300px] w-full min-w-0">
+            {clientRiskComposition.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={clientRiskComposition}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="valor"
+                  nameKey="etiqueta"
+                  stroke="none"
+                >
+                  {clientRiskComposition.map((_, index: number) => (
+                    <Cell key={`cell-risk-${index}`} fill={[COLORS[0], COLORS[3]][index % 2]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                     contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text-main)' }}
+                />
+                <Legend iconType="circle" />
+              </PieChart>
+            </ResponsiveContainer>
+            ) : (
+                <ChartEmptyState message="No hay clientes registrados" />
+            )}
+          </div>
+        </div>
+
+        {/* Weekly Income Comparison */}
+        <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+             <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-main">Comparativa Semanal de Ingresos</h3>
+                <InfoTooltip content="Total cobrado (cuotas + multas + servicios administrativos) por semana calendario (lunes a domingo), últimas 8 semanas." />
+             </div>
+             <p className="text-sm text-muted">Recaudación semana a semana</p>
+            </div>
+          </div>
+          <div className="h-[300px] w-full min-w-0">
+            {weeklyCollections && weeklyCollections.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyCollections}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                <XAxis dataKey="etiqueta" stroke={axisColor} />
+                <YAxis stroke={axisColor} tickFormatter={(value) => `L${value / 1000}k`} />
+                <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text-main)' }}
+                    formatter={(value: any) => [formatCurrency(Number(value)), 'Cobrado']}
+                />
+                <Bar dataKey="valor" fill="#3987E5" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            ) : (
+                <ChartEmptyState message="No hay datos de ingresos semanales" />
             )}
           </div>
         </div>

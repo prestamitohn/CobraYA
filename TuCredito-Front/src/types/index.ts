@@ -83,6 +83,18 @@ export interface DashboardKpisDTO {
   totalEnMora: number;
   porcentajeMorosidad: number;
   rentabilidad: number;
+  // Indicadores financieros ampliados (panel ejecutivo)
+  capitalRecuperado: number;
+  gananciaIntereses: number;
+  gananciaMultas: number;
+  gananciaServicios: number;
+  gananciaNeta: number;
+  rentabilidadSemanal: number;
+  rentabilidadMensual: number;
+  rentabilidadAnual: number;
+  totalClientes: number;
+  clientesActivos: number;
+  clientesEnMora: number;
 }
 
 export interface SimulacionPrestamoEntryDTO {

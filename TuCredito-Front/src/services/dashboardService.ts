@@ -24,17 +24,54 @@ async function actualizarMora(): Promise<void> {
   await supabase.rpc('actualizar_cuotas_vencidas');
 }
 
+/** Suma proporcional de interés o capital cobrado en un pago, prorrateando monto pagado según la composición de la cuota (mismo criterio que el motor de amortización). */
+function proporcionCuota(pago: { monto: number; cuota?: { monto: number; interes: number | null; capital: number | null } | null }, campo: 'interes' | 'capital'): number {
+  const cuotaMonto = Number(pago.cuota?.monto ?? 0);
+  const cuotaCampo = Number(pago.cuota?.[campo] ?? 0);
+  if (cuotaMonto <= 0) return 0;
+  return Number(pago.monto) * (cuotaCampo / cuotaMonto);
+}
+
+/** Ganancia (interés + multas + servicios administrativos, sin capital) cobrada desde una fecha de corte en adelante. */
+function gananciaDesde(pagos: PagoConDetalle[], desdeMs: number): number {
+  return pagos.reduce((acc, p) => {
+    if (new Date(p.fecha_pago).getTime() < desdeMs) return acc;
+    if (p.multa_id || p.gasto_administrativo_id) return acc + Number(p.monto);
+    return acc + proporcionCuota(p, 'interes');
+  }, 0);
+}
+
+interface PagoConDetalle {
+  monto: number;
+  fecha_pago: string;
+  multa_id: string | null;
+  gasto_administrativo_id: string | null;
+  cuota: { monto: number; interes: number | null; capital: number | null } | null;
+}
+
 export async function getDashboardKpis(): Promise<DashboardKpisDTO> {
   await actualizarMora();
 
-  const [{ data: prestamos, error: e1 }, { data: cuotas, error: e2 }, { data: pagos, error: e3 }] = await Promise.all([
+  const [
+    { data: prestamos, error: e1 },
+    { data: cuotas, error: e2 },
+    { data: pagos, error: e3 },
+    { data: clientes, error: e4 },
+    { data: cuotasVencidas, error: e5 },
+  ] = await Promise.all([
     supabase.from('prestamos').select('monto_otorgado'),
     supabase.from('cuotas').select('monto, interes, estado'),
-    supabase.from('pagos').select('monto, cuota:cuotas(monto, interes)'),
+    supabase.from('pagos').select('monto, fecha_pago, multa_id, gasto_administrativo_id, cuota:cuotas(monto, interes, capital)'),
+    supabase.from('clientes').select('id, activo'),
+    supabase.from('cuotas').select('prestamo:prestamos(cliente_id)').eq('estado', 'vencida'),
   ]);
   if (e1) throw e1;
   if (e2) throw e2;
   if (e3) throw e3;
+  if (e4) throw e4;
+  if (e5) throw e5;
+
+  const pagosDetalle = (pagos ?? []) as unknown as PagoConDetalle[];
 
   const totalPrestadoHistorico = (prestamos ?? []).reduce((acc, p) => acc + Number(p.monto_otorgado), 0);
 
@@ -46,17 +83,25 @@ export async function getDashboardKpis(): Promise<DashboardKpisDTO> {
     .filter((c) => c.estado === 'vencida')
     .reduce((acc, c) => acc + Number(c.monto), 0);
 
-  const totalCobrado = (pagos ?? []).reduce((acc, p) => acc + Number(p.monto), 0);
+  const totalCobrado = pagosDetalle.reduce((acc, p) => acc + Number(p.monto), 0);
 
-  const totalInteresCobrado = (pagos ?? []).reduce((acc: number, p: any) => {
-    const cuotaMonto = Number(p.cuota?.monto ?? 0);
-    const cuotaInteres = Number(p.cuota?.interes ?? 0);
-    if (cuotaMonto <= 0) return acc;
-    return acc + Number(p.monto) * (cuotaInteres / cuotaMonto);
-  }, 0);
+  const totalInteresCobrado = pagosDetalle.reduce((acc, p) => acc + proporcionCuota(p, 'interes'), 0);
+  const capitalRecuperado = pagosDetalle.reduce((acc, p) => acc + proporcionCuota(p, 'capital'), 0);
+  const gananciaMultas = pagosDetalle.filter((p) => !!p.multa_id).reduce((acc, p) => acc + Number(p.monto), 0);
+  const gananciaServicios = pagosDetalle.filter((p) => !!p.gasto_administrativo_id).reduce((acc, p) => acc + Number(p.monto), 0);
+  const gananciaNeta = totalInteresCobrado + gananciaMultas + gananciaServicios;
 
   const porcentajeMorosidad = capitalPendiente > 0 ? Math.round((totalEnMora / capitalPendiente) * 1000) / 10 : 0;
   const rentabilidad = totalPrestadoHistorico > 0 ? Math.round((totalInteresCobrado / totalPrestadoHistorico) * 1000) / 10 : 0;
+
+  const ahora = Date.now();
+  const dia = 24 * 60 * 60 * 1000;
+  const rentabilidadEnVentana = (dias: number) =>
+    totalPrestadoHistorico > 0 ? Math.round((gananciaDesde(pagosDetalle, ahora - dias * dia) / totalPrestadoHistorico) * 1000) / 10 : 0;
+
+  const totalClientes = clientes?.length ?? 0;
+  const clientesActivos = (clientes ?? []).filter((c) => c.activo).length;
+  const clientesEnMora = new Set((cuotasVencidas ?? []).map((r: any) => r.prestamo?.cliente_id).filter(Boolean)).size;
 
   return {
     totalPrestadoHistorico,
@@ -66,6 +111,17 @@ export async function getDashboardKpis(): Promise<DashboardKpisDTO> {
     totalEnMora,
     porcentajeMorosidad,
     rentabilidad,
+    capitalRecuperado,
+    gananciaIntereses: totalInteresCobrado,
+    gananciaMultas,
+    gananciaServicios,
+    gananciaNeta,
+    rentabilidadSemanal: rentabilidadEnVentana(7),
+    rentabilidadMensual: rentabilidadEnVentana(30),
+    rentabilidadAnual: rentabilidadEnVentana(365),
+    totalClientes,
+    clientesActivos,
+    clientesEnMora,
   };
 }
 
@@ -122,6 +178,39 @@ export async function getMonthlyCollections(): Promise<SerieTiempoDTO[]> {
   return Array.from(buckets.values())
     .sort((a, b) => a.anio - b.anio || a.mes - b.mes)
     .slice(-12);
+}
+
+/** Ingresos cobrados por semana calendario (lunes a domingo), últimas 8 semanas — para comparar semana a semana. */
+export async function getWeeklyCollections(): Promise<GraficoDatoDTO[]> {
+  const { data, error } = await supabase.from('pagos').select('monto, fecha_pago');
+  if (error) throw error;
+
+  const startOfWeek = (d: Date) => {
+    const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const dayOfWeek = date.getUTCDay(); // 0=domingo
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    date.setUTCDate(date.getUTCDate() - diffToMonday);
+    return date;
+  };
+
+  const hoy = new Date();
+  const semanas: { inicio: Date; valor: number }[] = [];
+  for (let i = 7; i >= 0; i--) {
+    const inicio = startOfWeek(new Date(hoy.getTime() - i * 7 * 24 * 60 * 60 * 1000));
+    semanas.push({ inicio, valor: 0 });
+  }
+
+  for (const row of data ?? []) {
+    const fecha = new Date(`${row.fecha_pago}T00:00:00Z`);
+    const inicioSemana = startOfWeek(fecha).getTime();
+    const semana = semanas.find((s) => s.inicio.getTime() === inicioSemana);
+    if (semana) semana.valor += Number(row.monto);
+  }
+
+  return semanas.map((s) => ({
+    etiqueta: `${s.inicio.getUTCDate()}/${s.inicio.getUTCMonth() + 1}`,
+    valor: s.valor,
+  }));
 }
 
 export async function getUpcomingInstallments(): Promise<CuotaAVencerDTO[]> {
