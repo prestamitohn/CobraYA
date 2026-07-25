@@ -26,6 +26,7 @@ export interface Tenant {
   rtn?: string | null;
   moneda: string;
   estadoSuscripcion: EstadoSuscripcion;
+  logoUrl?: string | null;
 }
 
 export interface Garante {

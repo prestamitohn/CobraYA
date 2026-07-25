@@ -1,7 +1,9 @@
 import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
+import { getMyTenant } from '../../services/tenantService';
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Inicio', to: '/' },
@@ -19,6 +21,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { logout, user, esSuperadmin } = useAuth();
+  const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant, enabled: !esSuperadmin && !!user });
 
   return (
     <>
@@ -37,11 +40,16 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       )}>
         <div className="flex h-20 items-center justify-between px-6">
           <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-primary-600 to-accent-gold flex items-center justify-center">
-                  <span className="font-bold text-white text-lg">C</span>
-              </div>
+              {tenant?.logoUrl ? (
+                <img src={tenant.logoUrl} alt={tenant.nombre} className="h-8 w-8 rounded-lg object-cover" />
+              ) : (
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-primary-600 to-accent-gold flex items-center justify-center">
+                    <span className="font-bold text-white text-lg">C</span>
+                </div>
+              )}
               <div>
                   <h1 className="text-xl font-bold tracking-tight text-main">CobraYA</h1>
+                  {tenant?.nombre && <p className="text-xs text-muted truncate max-w-[160px]">{tenant.nombre}</p>}
               </div>
           </div>
           {/* Close button mobile */}
