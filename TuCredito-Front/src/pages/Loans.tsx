@@ -242,6 +242,7 @@ export function Loans() {
                   <option value="">Todos</option>
                   <option value="activo">Activo</option>
                   <option value="finalizado">Finalizado</option>
+                  <option value="refinanciado">Refinanciado</option>
                   <option value="eliminado">Eliminado</option>
                 </select>
               </div>
@@ -383,6 +384,7 @@ export function Loans() {
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                       ${loan.estado === 'activo' ? 'bg-green-500/10 text-green-500' :
                         loan.estado === 'finalizado' ? 'bg-blue-500/10 text-blue-500' :
+                        loan.estado === 'refinanciado' ? 'bg-amber-500/10 text-amber-500' :
                         'bg-red-500/10 text-red-500'}`}>
                       {getEstadoPrestamoLabel(loan.estado)}
                     </span>

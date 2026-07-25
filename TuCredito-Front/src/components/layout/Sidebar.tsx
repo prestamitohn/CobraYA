@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert, Gavel } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '../../lib/utils';
@@ -10,6 +10,7 @@ const sidebarItems = [
   { icon: Wallet, label: 'Préstamos', to: '/loans' },
   { icon: Users, label: 'Clientes', to: '/borrowers' },
   { icon: Banknote, label: 'Pagos', to: '/payments' },
+  { icon: Gavel, label: 'Multas', to: '/multas' },
   { icon: Calculator, label: 'Calculadora', to: '/calculator' },
   { icon: Settings, label: 'Configuración', to: '/settings' },
 ];

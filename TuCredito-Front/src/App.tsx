@@ -19,6 +19,7 @@ const CreateBorrower = lazy(() => import('./pages/CreateBorrower').then((m) => (
 const EditBorrower = lazy(() => import('./pages/EditBorrower').then((m) => ({ default: m.EditBorrower })));
 const BorrowerDetails = lazy(() => import('./pages/BorrowerDetails').then((m) => ({ default: m.BorrowerDetails })));
 const Payments = lazy(() => import('./pages/Payments').then((m) => ({ default: m.Payments })));
+const Multas = lazy(() => import('./pages/Multas').then((m) => ({ default: m.Multas })));
 const Calculator = lazy(() => import('./pages/Calculator').then((m) => ({ default: m.Calculator })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
@@ -101,6 +102,7 @@ function AppRoutes() {
           <Route path="borrowers/edit/:documento" element={<EditBorrower />} />
           <Route path="borrowers/:documento" element={<BorrowerDetails />} />
           <Route path="payments" element={<Payments />} />
+          <Route path="multas" element={<Multas />} />
           <Route path="calculator" element={<Calculator />} />
           <Route path="settings" element={<Settings />} />
           <Route path="admin" element={<AdminRoute><Admin /></AdminRoute>} />

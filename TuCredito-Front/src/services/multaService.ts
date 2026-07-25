@@ -37,6 +37,38 @@ export async function getMultasByPrestamo(prestamoId: string): Promise<Multa[]> 
   return (data ?? []).map((row) => mapMulta(row as MultaRow));
 }
 
+export interface MultaConCliente extends Multa {
+  nroCuota: number | null;
+  clienteId: string | null;
+  clienteNombre: string;
+  clienteDocumento: string | null;
+}
+
+interface MultaConClienteRow extends MultaRow {
+  cuota: { nro_cuota: number } | null;
+  prestamo: { cliente: { id: string; nombre: string; apellido: string | null; documento: string } | null } | null;
+}
+
+/** Historial global de multas del tenant (todos los préstamos), para el reporte financiero. */
+export async function getAllMultas(): Promise<MultaConCliente[]> {
+  const { data, error } = await supabase
+    .from('multas')
+    .select('id, prestamo_id, cuota_id, monto, saldo_pendiente, motivo, fecha_incumplimiento, estado, aplicada_automaticamente, cuota:cuotas(nro_cuota), prestamo:prestamos(cliente:clientes(id, nombre, apellido, documento))')
+    .order('fecha_incumplimiento', { ascending: false });
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as MultaConClienteRow[]).map((row) => {
+    const cliente = row.prestamo?.cliente;
+    return {
+      ...mapMulta(row),
+      nroCuota: row.cuota?.nro_cuota ?? null,
+      clienteId: cliente?.id ?? null,
+      clienteNombre: cliente ? `${cliente.nombre} ${cliente.apellido ?? ''}`.trim() : 'N/A',
+      clienteDocumento: cliente?.documento ?? null,
+    };
+  });
+}
+
 export interface AplicarMultaInput {
   cuotaId: string;
   monto: number;

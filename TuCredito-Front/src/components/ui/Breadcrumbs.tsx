@@ -8,6 +8,7 @@ const routeNameMap: Record<string, string> = {
   edit: 'Editar',
   borrowers: 'Clientes',
   payments: 'Pagos',
+  multas: 'Multas',
   calculator: 'Calculadora',
   settings: 'Configuración',
   dashboard: 'Inicio'

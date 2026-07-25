@@ -69,6 +69,7 @@ export function PaymentModal({ isOpen, onClose, item, kind = 'cuota', isAdvance 
       queryClient.invalidateQueries({ queryKey: ['installments'] });
       queryClient.invalidateQueries({ queryKey: ['gastosAdministrativos'] });
       queryClient.invalidateQueries({ queryKey: ['multas'] });
+      queryClient.invalidateQueries({ queryKey: ['allMultas'] });
       queryClient.invalidateQueries({ queryKey: ['loan'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['loans'] });

@@ -4,7 +4,7 @@
 // BCRA, Dólar) para no romper su compilación.
 
 export type RolUsuario = 'owner' | 'collector';
-export type EstadoPrestamo = 'activo' | 'finalizado' | 'eliminado' | 'archivado';
+export type EstadoPrestamo = 'activo' | 'finalizado' | 'eliminado' | 'archivado' | 'refinanciado';
 export type EstadoCuota = 'pendiente' | 'saldada' | 'vencida' | 'reprogramada';
 export type SistemaAmortizacion = 'frances' | 'aleman' | 'americano' | 'directo';
 export type FrecuenciaCobro = 'diario' | 'semanal' | 'quincenal' | 'mensual';
@@ -69,6 +69,8 @@ export interface Prestamo {
   gastoAdministrativoMonto?: number | null;
   gastoAdministrativoFrecuencia?: FrecuenciaGastoAdministrativo | null;
   multaPorAtrasoMonto?: number | null;
+  refinanciadoDeId?: string | null;
+  motivoRefinanciamiento?: string | null;
   cliente?: Pick<Cliente, 'id' | 'nombre' | 'apellido' | 'documento' | 'telefono'> | null;
 }
 
@@ -195,6 +197,7 @@ export function getEstadoPrestamoLabel(estado: EstadoPrestamo): string {
     case 'finalizado': return 'Finalizado';
     case 'eliminado': return 'Eliminado';
     case 'archivado': return 'Archivado';
+    case 'refinanciado': return 'Refinanciado';
     default: return estado;
   }
 }

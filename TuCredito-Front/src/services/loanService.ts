@@ -24,10 +24,12 @@ interface PrestamoRow {
   gasto_administrativo_monto: number | null;
   gasto_administrativo_frecuencia: FrecuenciaGastoAdministrativo | null;
   multa_por_atraso_monto: number | null;
+  refinanciado_de_id: string | null;
+  motivo_refinanciamiento: string | null;
   cliente?: { id: string; nombre: string; apellido: string | null; documento: string; telefono: string | null } | null;
 }
 
-const PRESTAMO_SELECT = 'id, cliente_id, cobrador_id, monto_otorgado, saldo_restante, cantidad_cuotas, tasa_interes, sistema_amortizacion, frecuencia_cobro, estado, fecha_otorgamiento, fecha_primer_vto, fecha_fin_estimada, moneda, gasto_administrativo_monto, gasto_administrativo_frecuencia, multa_por_atraso_monto, cliente:clientes(id, nombre, apellido, documento, telefono)';
+const PRESTAMO_SELECT = 'id, cliente_id, cobrador_id, monto_otorgado, saldo_restante, cantidad_cuotas, tasa_interes, sistema_amortizacion, frecuencia_cobro, estado, fecha_otorgamiento, fecha_primer_vto, fecha_fin_estimada, moneda, gasto_administrativo_monto, gasto_administrativo_frecuencia, multa_por_atraso_monto, refinanciado_de_id, motivo_refinanciamiento, cliente:clientes(id, nombre, apellido, documento, telefono)';
 
 function mapPrestamo(row: PrestamoRow): Prestamo {
   return {
@@ -48,6 +50,8 @@ function mapPrestamo(row: PrestamoRow): Prestamo {
     gastoAdministrativoMonto: row.gasto_administrativo_monto,
     gastoAdministrativoFrecuencia: row.gasto_administrativo_frecuencia,
     multaPorAtrasoMonto: row.multa_por_atraso_monto,
+    refinanciadoDeId: row.refinanciado_de_id,
+    motivoRefinanciamiento: row.motivo_refinanciamiento,
     cliente: row.cliente,
   };
 }
@@ -92,6 +96,36 @@ export async function getLoanById(id: string): Promise<Prestamo> {
   const { data, error } = await supabase.from('prestamos').select(PRESTAMO_SELECT).eq('id', id).single();
   if (error) throw error;
   return mapPrestamo(data as unknown as PrestamoRow);
+}
+
+/** Encuentra el préstamo nuevo que refinanció a este (si lo hubo) — búsqueda inversa por refinanciado_de_id. */
+export async function getLoanThatRefinanced(prestamoId: string): Promise<Prestamo | null> {
+  const { data, error } = await supabase.from('prestamos').select(PRESTAMO_SELECT).eq('refinanciado_de_id', prestamoId).maybeSingle();
+  if (error) throw error;
+  return data ? mapPrestamo(data as unknown as PrestamoRow) : null;
+}
+
+export interface RefinanceLoanInput {
+  prestamoOriginalId: string;
+  montoAdicional?: number;
+  cantidadCuotas: number;
+  tasaInteres: number;
+  sistemaAmortizacion: SistemaAmortizacion;
+  frecuenciaCobro: FrecuenciaCobro;
+  fechaOtorgamiento: string; // yyyy-mm-dd
+  moneda?: string;
+  cobradorId?: string | null;
+  gastoAdministrativoMonto?: number | null;
+  gastoAdministrativoFrecuencia?: FrecuenciaGastoAdministrativo | null;
+  multaPorAtrasoMonto?: number | null;
+  motivo?: string | null;
+}
+
+export async function refinanceLoan(input: RefinanceLoanInput): Promise<{ prestamoId: string; montoPrestamo: number; simulacion: SimulacionResultado }> {
+  const { data, error } = await supabase.functions.invoke('refinanciar-prestamo', { body: input });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
 }
 
 export interface LoanFilters {

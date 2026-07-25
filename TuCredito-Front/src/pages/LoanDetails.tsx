@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getLoanById, deleteLoan } from '../services/loanService';
+import { getLoanById, deleteLoan, getLoanThatRefinanced } from '../services/loanService';
 import { getInstallments } from '../services/installmentService';
 import { getGastosAdministrativos } from '../services/gastoAdministrativoService';
 import { getMultasByPrestamo } from '../services/multaService';
-import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt, AlertTriangle, ShieldAlert, RefreshCw, Info } from 'lucide-react';
 import { getEstadoPrestamoLabel, getEstadoCuotaLabel } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { PaymentModal, PagableItem } from '../components/payments/PaymentModal';
 import { AplicarMultaModal } from '../components/payments/AplicarMultaModal';
+import { RefinanceLoanModal } from '../components/loans/RefinanceLoanModal';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 import { useLoanAliases } from '../hooks/useLoanAliases';
@@ -27,6 +28,7 @@ export function LoanDetails() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isAdvancePayment, setIsAdvancePayment] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isRefinanceModalOpen, setIsRefinanceModalOpen] = useState(false);
   const [multaCuota, setMultaCuota] = useState<{ id: string; nroCuota: number; monto: number } | null>(null);
 
   const [isEditingAlias, setIsEditingAlias] = useState(false);
@@ -75,6 +77,18 @@ export function LoanDetails() {
     queryKey: ['multas', loanId],
     queryFn: () => getMultasByPrestamo(loanId),
     enabled: !!loanId,
+  });
+
+  const { data: prestamoRefinanciador } = useQuery({
+    queryKey: ['loanThatRefinanced', loanId],
+    queryFn: () => getLoanThatRefinanced(loanId),
+    enabled: !!loanId && loan?.estado === 'refinanciado',
+  });
+
+  const { data: prestamoOriginal } = useQuery({
+    queryKey: ['loan', loan?.refinanciadoDeId],
+    queryFn: () => getLoanById(loan!.refinanciadoDeId!),
+    enabled: !!loan?.refinanciadoDeId,
   });
 
   const cuotasSaldadas = installments?.filter((i) => i.estado === 'saldada').length ?? 0;
@@ -185,6 +199,16 @@ export function LoanDetails() {
             </button>
           )}
 
+          {loan.estado === 'activo' && (
+            <button
+              onClick={() => setIsRefinanceModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-500/10 hover:bg-primary-500/20 text-primary-500 rounded-lg transition-colors border border-primary-500/20"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refinanciar
+            </button>
+          )}
+
           {(loan.estado === 'activo' || loan.estado === 'finalizado') && (
             <button
               onClick={() => setIsDeleteModalOpen(true)}
@@ -196,6 +220,41 @@ export function LoanDetails() {
           )}
         </div>
       </div>
+
+      {loan.estado === 'refinanciado' && (
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
+          <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-medium text-blue-400">Este préstamo fue refinanciado</h3>
+            <p className="text-sm text-blue-400/80 mt-1">
+              {loan.motivoRefinanciamiento && <>Motivo: {loan.motivoRefinanciamiento}. </>}
+              Su saldo pendiente pasó a un préstamo nuevo{prestamoRefinanciador ? ':' : '.'}{' '}
+              {prestamoRefinanciador && (
+                <Link to={`/loans/${prestamoRefinanciador.id}`} className="underline hover:text-blue-300">
+                  Ver préstamo nuevo
+                </Link>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {loan.refinanciadoDeId && (
+        <div className="bg-primary-500/10 border border-primary-500/20 rounded-xl p-4 flex items-start gap-3">
+          <RefreshCw className="h-5 w-5 text-primary-500 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-medium text-primary-600 dark:text-primary-400">Este préstamo viene de un refinanciamiento</h3>
+            <p className="text-sm text-primary-700 dark:text-primary-200 mt-1">
+              Reemplaza al préstamo original.{' '}
+              {prestamoOriginal && (
+                <Link to={`/loans/${prestamoOriginal.id}`} className="underline hover:text-primary-500">
+                  Ver préstamo original
+                </Link>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Loan Info Card */}
@@ -241,7 +300,8 @@ export function LoanDetails() {
                 <StatusBadge variant={
                   loan.estado === 'activo' ? 'success' :
                   loan.estado === 'finalizado' ? 'default' :
-                  loan.estado === 'eliminado' ? 'error' : 'default'
+                  loan.estado === 'eliminado' ? 'error' :
+                  loan.estado === 'refinanciado' ? 'warning' : 'default'
                 }>
                   {getEstadoPrestamoLabel(loan.estado)}
                 </StatusBadge>
@@ -491,6 +551,16 @@ export function LoanDetails() {
         cuotaId={multaCuota?.id ?? null}
         nroCuota={multaCuota?.nroCuota}
         montoSugerido={multaCuota?.monto}
+      />
+
+      <RefinanceLoanModal
+        isOpen={isRefinanceModalOpen}
+        onClose={() => setIsRefinanceModalOpen(false)}
+        prestamoId={loan.id}
+        saldoRestante={loan.saldoRestante}
+        tasaInteresActual={loan.tasaInteres}
+        sistemaAmortizacionActual={loan.sistemaAmortizacion}
+        frecuenciaCobroActual={loan.frecuenciaCobro}
       />
 
       <PaymentModal
