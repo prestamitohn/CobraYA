@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getBorrowers, toggleBorrowerStatus, BorrowerFilters } from '../services/borrowerService';
 import { getDelinquencyDetails } from '../services/dashboardService';
-import { Plus, Search, User, Mail, Phone, MapPin, AlertCircle, Filter, X, Power, Pencil } from 'lucide-react';
+import { getClasificacionesClientes } from '../services/clasificacionService';
+import { getClasificacionLabel, getClasificacionColorClass } from '../types/cobraya';
+import { Plus, Search, User, Mail, Phone, MapPin, AlertCircle, Filter, X, Power, Pencil, ShieldAlert } from 'lucide-react';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 
@@ -64,7 +66,13 @@ export function Borrowers() {
     queryFn: getDelinquencyDetails
   });
 
+  const { data: clasificaciones } = useQuery({
+    queryKey: ['clasificaciones'],
+    queryFn: getClasificacionesClientes,
+  });
+
   const delinquentNames = new Set(delinquencyDetails?.map(d => d.cliente));
+  const clasificacionPorCliente = new Map(clasificaciones?.map((c) => [c.clienteId, c]));
 
   if (isLoading) {
     return (
@@ -186,6 +194,7 @@ export function Borrowers() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {borrowers?.map((borrower) => {
             const isDelinquent = delinquentNames.has(`${borrower.nombre} ${borrower.apellido ?? ''}`.trim());
+            const clasificacion = clasificacionPorCliente.get(borrower.id);
             return (
             <div key={borrower.id} className={`rounded-xl p-5 border transition-all group ${
               isDelinquent
@@ -212,6 +221,11 @@ export function Borrowers() {
                   <span className={`px-2 py-1 rounded-md text-xs font-medium ${borrower.activo ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
                     {borrower.activo ? 'Activo' : 'Inactivo'}
                   </span>
+                  {clasificacion && (
+                    <span className={`px-2 py-1 rounded-md text-xs font-medium border ${getClasificacionColorClass(clasificacion.clasificacion)}`}>
+                      {getClasificacionLabel(clasificacion.clasificacion)}
+                    </span>
+                  )}
                   {isDelinquent && (
                     <span className="px-2 py-1 rounded-md text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/20">
                       Moroso
@@ -219,6 +233,13 @@ export function Borrowers() {
                   )}
                 </div>
               </div>
+
+              {clasificacion?.noRecomendadoRefinanciamiento && (
+                <div className="mb-3 flex items-center gap-1.5 text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-2.5 py-1.5">
+                  <ShieldAlert className="h-3.5 w-3.5 flex-shrink-0" />
+                  No recomendado para refinanciamiento
+                </div>
+              )}
 
               <div className="space-y-2 text-sm text-muted">
                 <div className="flex items-center gap-2">

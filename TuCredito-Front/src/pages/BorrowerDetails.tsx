@@ -3,8 +3,9 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBorrowerByDocumento, updateBorrower } from '../services/borrowerService';
 import { getLoans } from '../services/loanService';
-import { ArrowLeft, User, Users, Edit, Save, X } from 'lucide-react';
-import { getEstadoPrestamoLabel } from '../types/cobraya';
+import { getClasificacionesClientes } from '../services/clasificacionService';
+import { ArrowLeft, User, Users, Edit, Save, X, ShieldAlert, TrendingUp } from 'lucide-react';
+import { getEstadoPrestamoLabel, getClasificacionLabel, getClasificacionColorClass } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatCurrency } from '../utils/formatters';
 import { useToast } from '../context/ToastContext';
@@ -35,7 +36,13 @@ export function BorrowerDetails() {
     queryFn: getLoans,
   });
 
+  const { data: clasificaciones } = useQuery({
+    queryKey: ['clasificaciones'],
+    queryFn: getClasificacionesClientes,
+  });
+
   const borrowerLoans = loans?.filter((l) => l.clienteId === borrower?.id) || [];
+  const clasificacion = clasificaciones?.find((c) => c.clienteId === borrower?.id);
 
   const updateMutation = useMutation({
     mutationFn: (data: { correo?: string; telefono?: string; domicilio?: string }) =>
@@ -104,6 +111,45 @@ export function BorrowerDetails() {
       <div className="mt-6">
         {activeTab === 'info' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {clasificacion && (
+              <div className="md:col-span-2 glass-panel p-6 rounded-xl border border-border space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h3 className="font-semibold text-lg text-main flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary-500" /> Clasificación de Comportamiento de Pago
+                  </h3>
+                  <span className={`px-3 py-1 rounded-lg text-sm font-semibold border ${getClasificacionColorClass(clasificacion.clasificacion)}`}>
+                    {getClasificacionLabel(clasificacion.clasificacion)}
+                  </span>
+                </div>
+
+                {clasificacion.noRecomendadoRefinanciamiento && (
+                  <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2">
+                    <ShieldAlert className="h-4 w-4 flex-shrink-0" />
+                    Cliente no recomendado para refinanciamiento
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted block">% Cumplimiento</span>
+                    <span className="text-main font-medium text-lg">{clasificacion.porcentajeCumplimiento}%</span>
+                  </div>
+                  <div>
+                    <span className="text-muted block">Cuotas a Tiempo</span>
+                    <span className="text-main font-medium text-lg">{clasificacion.cuotasPagadasATiempo}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted block">Cuotas Tardías</span>
+                    <span className="text-main font-medium text-lg">{clasificacion.cuotasPagadasTarde}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted block">Vencidas / Multas Activas</span>
+                    <span className="text-main font-medium text-lg">{clasificacion.cuotasVencidasActuales} / {clasificacion.multasActivas}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="glass-panel p-6 rounded-xl border border-border space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-lg text-main flex items-center gap-2">

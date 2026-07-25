@@ -113,6 +113,41 @@ export interface Multa {
   aplicadaAutomaticamente: boolean;
 }
 
+export type ClasificacionCliente = 'excelente' | 'bueno' | 'regular' | 'malo';
+
+/** Score de comportamiento de pago de un cliente, calculado en base a su historial real de cuotas. */
+export interface ClienteClasificacion {
+  clienteId: string;
+  totalCuotasVencidasHist: number;
+  cuotasPagadasATiempo: number;
+  cuotasPagadasTarde: number;
+  cuotasVencidasActuales: number;
+  multasActivas: number;
+  porcentajeCumplimiento: number;
+  clasificacion: ClasificacionCliente;
+  noRecomendadoRefinanciamiento: boolean;
+}
+
+export function getClasificacionLabel(c: ClasificacionCliente): string {
+  switch (c) {
+    case 'excelente': return 'Excelente';
+    case 'bueno': return 'Bueno';
+    case 'regular': return 'Regular';
+    case 'malo': return 'Malo';
+    default: return c;
+  }
+}
+
+export function getClasificacionColorClass(c: ClasificacionCliente): string {
+  switch (c) {
+    case 'excelente': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+    case 'bueno': return 'bg-primary-500/10 text-primary-500 border-primary-500/20';
+    case 'regular': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+    case 'malo': return 'bg-red-500/10 text-red-500 border-red-500/20';
+    default: return 'bg-surfaceHighlight text-muted border-border';
+  }
+}
+
 export interface Pago {
   id: string;
   cuotaId: string;
