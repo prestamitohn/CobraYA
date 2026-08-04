@@ -81,6 +81,16 @@ export async function getBorrowerByDocumento(documento: string): Promise<Cliente
   return mapCliente(data as unknown as ClienteRow);
 }
 
+export async function getBorrowerById(id: string): Promise<Cliente> {
+  const { data, error } = await supabase
+    .from('clientes')
+    .select(CLIENTE_SELECT)
+    .eq('id', id)
+    .single();
+  if (error) throw error;
+  return mapCliente(data as unknown as ClienteRow);
+}
+
 export interface GaranteInput {
   nombre?: string;
   apellido?: string;

@@ -125,7 +125,7 @@ export interface ReciboNegocio {
 }
 
 /** Convierte una URL de imagen (p. ej. el logo del negocio en Storage) a data URL para poder embeberla en el PDF; null si falla (CORS, red, formato no soportado por jsPDF). */
-async function imageUrlToDataUrl(url: string): Promise<{ dataUrl: string; format: 'PNG' | 'JPEG' } | null> {
+export async function imageUrlToDataUrl(url: string): Promise<{ dataUrl: string; format: 'PNG' | 'JPEG' } | null> {
   try {
     const res = await fetch(url);
     const blob = await res.blob();

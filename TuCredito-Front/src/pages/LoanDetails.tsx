@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getLoanById, deleteLoan, getLoanThatRefinanced } from '../services/loanService';
 import { getInstallments } from '../services/installmentService';
 import { getGastosAdministrativos } from '../services/gastoAdministrativoService';
 import { getMultasByPrestamo } from '../services/multaService';
-import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt, AlertTriangle, ShieldAlert, RefreshCw, Info } from 'lucide-react';
+import { getBorrowerById } from '../services/borrowerService';
+import { getContratosByPrestamo, obtenerUrlContrato } from '../services/contractService';
+import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt, AlertTriangle, ShieldAlert, RefreshCw, Info, FileSignature, FileText, Loader2 } from 'lucide-react';
 import { getEstadoPrestamoLabel, getEstadoCuotaLabel } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -15,6 +17,11 @@ import { RefinanceLoanModal } from '../components/loans/RefinanceLoanModal';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 import { useLoanAliases } from '../hooks/useLoanAliases';
+
+// signature_pad + jsPDF/autotable solo se necesitan si el usuario realmente abre el
+// modal de contrato — cargarlos siempre engordaría el chunk de LoanDetails (~30kB extra)
+// para la mayoría de las visitas, que nunca lo usan.
+const ContractModal = lazy(() => import('../components/loans/ContractModal').then((m) => ({ default: m.ContractModal })));
 
 export function LoanDetails() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +36,8 @@ export function LoanDetails() {
   const [isAdvancePayment, setIsAdvancePayment] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isRefinanceModalOpen, setIsRefinanceModalOpen] = useState(false);
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [viendoContratoId, setViendoContratoId] = useState<string | null>(null);
   const [multaCuota, setMultaCuota] = useState<{ id: string; nroCuota: number; monto: number } | null>(null);
 
   const [isEditingAlias, setIsEditingAlias] = useState(false);
@@ -90,6 +99,30 @@ export function LoanDetails() {
     queryFn: () => getLoanById(loan!.refinanciadoDeId!),
     enabled: !!loan?.refinanciadoDeId,
   });
+
+  const { data: clienteCompleto } = useQuery({
+    queryKey: ['borrower', loan?.clienteId],
+    queryFn: () => getBorrowerById(loan!.clienteId),
+    enabled: !!loan?.clienteId,
+  });
+
+  const { data: contratos } = useQuery({
+    queryKey: ['contratos', loanId],
+    queryFn: () => getContratosByPrestamo(loanId),
+    enabled: !!loanId,
+  });
+
+  const handleVerContrato = async (documentoId: string) => {
+    setViendoContratoId(documentoId);
+    try {
+      const url = await obtenerUrlContrato(documentoId);
+      window.open(url, '_blank');
+    } catch {
+      addToast('Error al abrir el contrato', 'error');
+    } finally {
+      setViendoContratoId(null);
+    }
+  };
 
   const cuotasSaldadas = installments?.filter((i) => i.estado === 'saldada').length ?? 0;
   const lastPendingInstallment = installments?.filter(i => i.estado === 'pendiente')
@@ -206,6 +239,16 @@ export function LoanDetails() {
             >
               <RefreshCw className="h-4 w-4" />
               Refinanciar
+            </button>
+          )}
+
+          {clienteCompleto && (
+            <button
+              onClick={() => setIsContractModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-accent-gold/10 hover:bg-accent-gold/20 text-accent-goldDark rounded-lg transition-colors border border-accent-gold/20"
+            >
+              <FileSignature className="h-4 w-4" />
+              {contratos?.length ? 'Nuevo Contrato' : 'Generar Contrato'}
             </button>
           )}
 
@@ -543,6 +586,38 @@ export function LoanDetails() {
             </div>
           </div>
         )}
+        {!!contratos?.length && (
+          <div className="md:col-span-3 glass-panel rounded-xl border border-border overflow-hidden">
+            <div className="p-6 border-b border-border">
+              <h2 className="text-lg font-semibold text-main flex items-center gap-2">
+                <FileSignature className="h-5 w-5 text-accent-goldDark" />
+                Contrato
+              </h2>
+              <p className="text-sm text-muted mt-1">Contratos firmados guardados en el expediente de este préstamo.</p>
+            </div>
+            <div className="divide-y divide-border">
+              {contratos.map((contrato) => (
+                <div key={contrato.id} className="px-6 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-4 w-4 text-muted" />
+                    <div>
+                      <p className="text-sm text-main">{contrato.nombreOriginal}</p>
+                      <p className="text-xs text-muted">Firmado el {formatDate(contrato.createdAt)}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleVerContrato(contrato.id)}
+                    disabled={viendoContratoId === contrato.id}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                  >
+                    {viendoContratoId === contrato.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                    Ver
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <AplicarMultaModal
@@ -562,6 +637,18 @@ export function LoanDetails() {
         sistemaAmortizacionActual={loan.sistemaAmortizacion}
         frecuenciaCobroActual={loan.frecuenciaCobro}
       />
+
+      {isContractModalOpen && clienteCompleto && (
+        <Suspense fallback={null}>
+          <ContractModal
+            isOpen={isContractModalOpen}
+            onClose={() => setIsContractModalOpen(false)}
+            prestamo={loan}
+            cliente={clienteCompleto}
+            cuotas={installments ?? []}
+          />
+        </Suspense>
+      )}
 
       <PaymentModal
         isOpen={isPaymentModalOpen}
