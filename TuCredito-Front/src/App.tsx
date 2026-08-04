@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/layout/Layout';
 import { ToastProvider } from './context/ToastContext';
+import { BlockedAccountScreen } from './components/auth/BlockedAccountScreen';
 
 // Cada página en su propio chunk: /login no debería tener que descargar el código de
 // Dashboard/Recharts/panel de Admin antes de poder pintarse (medido: el bundle único
@@ -48,19 +49,21 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (tenantEstado && (tenantEstado.estadoSuscripcion === 'suspendida' || tenantEstado.estadoSuscripcion === 'cancelada')) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-background gap-4 px-4 text-center">
-        <h1 className="text-2xl font-bold text-main">Cuenta {tenantEstado.estadoSuscripcion}</h1>
-        <p className="text-muted max-w-md">
-          La cuenta de <strong>{tenantEstado.nombre}</strong> está {tenantEstado.estadoSuscripcion} y no tiene acceso al sistema.
-          Contactá al soporte de CobraYA para regularizar tu suscripción.
-        </p>
-        <button
-          onClick={logout}
-          className="mt-2 px-4 py-2 rounded-lg border border-border text-main hover:bg-surfaceHighlight transition-colors"
-        >
-          Cerrar sesión
-        </button>
-      </div>
+      <BlockedAccountScreen
+        titulo={`Cuenta ${tenantEstado.estadoSuscripcion}`}
+        mensaje={`La cuenta de ${tenantEstado.nombre} está ${tenantEstado.estadoSuscripcion} y no tiene acceso al sistema. Regulariza tu suscripción para reactivarla.`}
+        onLogout={logout}
+      />
+    );
+  }
+
+  if (tenantEstado?.trialVencido) {
+    return (
+      <BlockedAccountScreen
+        titulo="Tu prueba gratuita terminó"
+        mensaje={`Los 14 días de prueba gratuita de ${tenantEstado.nombre} ya terminaron. Realiza el pago de tu suscripción para seguir usando CobraYA.`}
+        onLogout={logout}
+      />
     );
   }
 

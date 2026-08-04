@@ -6,6 +6,9 @@ import { EstadoSuscripcion, Usuario } from '../types/cobraya';
 interface TenantEstado {
   nombre: string;
   estadoSuscripcion: EstadoSuscripcion;
+  fechaInicio: string;
+  diasRestantesPrueba: number;
+  trialVencido: boolean;
 }
 
 interface AuthContextType {
@@ -56,7 +59,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.rpc('is_superadmin').then(({ data }) => setEsSuperadmin(!!data));
     supabase.rpc('mi_tenant_estado').then(({ data }) => {
       const row = data?.[0];
-      setTenantEstado(row ? { nombre: row.nombre, estadoSuscripcion: row.estado_suscripcion } : null);
+      setTenantEstado(row ? {
+        nombre: row.nombre,
+        estadoSuscripcion: row.estado_suscripcion,
+        fechaInicio: row.fecha_inicio,
+        diasRestantesPrueba: row.dias_restantes_prueba,
+        trialVencido: row.trial_vencido,
+      } : null);
     });
   };
 

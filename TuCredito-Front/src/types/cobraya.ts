@@ -10,6 +10,30 @@ export type SistemaAmortizacion = 'frances' | 'aleman' | 'americano' | 'directo'
 export type FrecuenciaCobro = 'diario' | 'semanal' | 'quincenal' | 'mensual';
 export type FrecuenciaGastoAdministrativo = 'semanal' | 'mensual' | 'por_cuota';
 export type EstadoSuscripcion = 'prueba' | 'activa' | 'suspendida' | 'cancelada';
+export type TipoCuentaPago = 'banco' | 'tigo_money' | 'paypal' | 'otro';
+
+export interface PlatformPaymentAccount {
+  id: string;
+  tipo: TipoCuentaPago;
+  nombreBeneficiario: string;
+  banco?: string | null;
+  numeroCuenta?: string | null;
+  tipoCuentaBancaria?: string | null;
+  telefono?: string | null;
+  instrucciones?: string | null;
+  activo?: boolean;
+  orden?: number;
+}
+
+export function getTipoCuentaPagoLabel(tipo: TipoCuentaPago): string {
+  switch (tipo) {
+    case 'banco': return 'Transferencia Bancaria';
+    case 'tigo_money': return 'Tigo Money';
+    case 'paypal': return 'PayPal';
+    case 'otro': return 'Otro';
+    default: return tipo;
+  }
+}
 
 export interface Usuario {
   id: string;
