@@ -82,3 +82,9 @@ export async function unsubscribeFromPush(): Promise<void> {
   await supabase.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint);
   await subscription.unsubscribe();
 }
+
+export async function sendTestPush(): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('probar-notificacion-push', { body: {} });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+}

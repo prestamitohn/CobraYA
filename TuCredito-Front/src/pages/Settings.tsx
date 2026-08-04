@@ -5,7 +5,7 @@ import { Settings as SettingsIcon, Shield, Moon, User, Globe, Check, AlertCircle
 import { useTheme } from '../hooks/useTheme';
 import { updateProfile } from '../services/authService';
 import { getMyTenant, updateTenant, uploadTenantLogo, removeTenantLogo } from '../services/tenantService';
-import { isPushSupported, getNotificationPermission, hasActivePushSubscription, subscribeToPush, unsubscribeFromPush } from '../services/pushService';
+import { isPushSupported, getNotificationPermission, hasActivePushSubscription, subscribeToPush, unsubscribeFromPush, sendTestPush } from '../services/pushService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -140,6 +140,12 @@ export function Settings() {
             refetchPushSubscription();
         },
         onError: () => addToast('Error al desactivar las notificaciones', 'error'),
+    });
+
+    const testPushMutation = useMutation({
+        mutationFn: sendTestPush,
+        onSuccess: () => addToast('Notificación de prueba enviada — revisa tu dispositivo', 'success'),
+        onError: (error: any) => addToast(error.message || 'Error al enviar la notificación de prueba', 'error'),
     });
 
     const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<PasswordFormData>({
@@ -428,14 +434,24 @@ export function Settings() {
               ) : notificationPermission === 'denied' ? (
                 <span className="text-xs text-red-400 italic whitespace-nowrap">Bloqueadas en el navegador</span>
               ) : hasPushSubscription ? (
-                <button
-                  onClick={() => unsubscribePushMutation.mutate()}
-                  disabled={unsubscribePushMutation.isPending}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm hover:bg-surfaceHighlight transition-colors text-main disabled:opacity-50 whitespace-nowrap"
-                >
-                  {unsubscribePushMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellOff className="h-4 w-4" />}
-                  Desactivar
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => testPushMutation.mutate()}
+                    disabled={testPushMutation.isPending}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm hover:bg-surfaceHighlight transition-colors text-main disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {testPushMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                    Enviar prueba
+                  </button>
+                  <button
+                    onClick={() => unsubscribePushMutation.mutate()}
+                    disabled={unsubscribePushMutation.isPending}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm hover:bg-surfaceHighlight transition-colors text-main disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {unsubscribePushMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellOff className="h-4 w-4" />}
+                    Desactivar
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() => subscribePushMutation.mutate()}
