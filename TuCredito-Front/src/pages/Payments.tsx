@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getPayments } from '../services/paymentService';
+import { getMyTenant } from '../services/tenantService';
 import { useNavigate } from 'react-router-dom';
-import { Search, AlertCircle, CheckCircle2, Plus } from 'lucide-react';
+import { Search, AlertCircle, CheckCircle2, Plus, Receipt, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { StatusBadge } from '../components/ui/StatusBadge';
 
@@ -13,7 +14,7 @@ import type { PagoDetalle } from '../services/paymentService';
 
 const PAYMENT_EXPORT_COLUMNS: ExportColumn<PagoDetalle>[] = [
   { header: 'Cliente', value: (p) => p.clienteNombre },
-  { header: 'Cuota', value: (p) => `${p.nroCuota}/${p.cantidadCuotas || '-'}` },
+  { header: 'Concepto', value: (p) => p.concepto },
   { header: 'Monto', value: (p) => p.monto || 0 },
   { header: 'Fecha', value: (p) => formatDate(p.fechaPago) },
   { header: 'Medio de Pago', value: (p) => p.medioPago },
@@ -26,11 +27,31 @@ export function Payments() {
   const [isNewPaymentModalOpen, setIsNewPaymentModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedInstallment, setSelectedInstallment] = useState<PagableItem | null>(null);
+  const [generandoReciboId, setGenerandoReciboId] = useState<string | null>(null);
 
   const { data: payments, isLoading, error } = useQuery({
     queryKey: ['payments'],
     queryFn: getPayments,
   });
+
+  const { data: tenant } = useQuery({
+    queryKey: ['tenant'],
+    queryFn: getMyTenant,
+  });
+
+  const handleDescargarRecibo = async (payment: PagoDetalle) => {
+    setGenerandoReciboId(payment.id);
+    try {
+      const { exportReciboPago } = await import('../utils/pdfGenerator');
+      await exportReciboPago(payment, {
+        nombre: tenant?.nombre || 'CobraYA',
+        logoUrl: tenant?.logoUrl,
+        rtn: tenant?.rtn,
+      });
+    } finally {
+      setGenerandoReciboId(null);
+    }
+  };
 
   const filteredPayments = useMemo(() => {
     if (!payments) return payments;
@@ -94,11 +115,12 @@ export function Payments() {
             <thead className="bg-surfaceHighlight text-muted">
               <tr>
                 <th className="px-6 py-3 font-medium">Cliente</th>
-                <th className="px-6 py-3 font-medium">Cuota</th>
+                <th className="px-6 py-3 font-medium">Concepto</th>
                 <th className="px-6 py-3 font-medium">Monto</th>
                 <th className="px-6 py-3 font-medium">Fecha</th>
                 <th className="px-6 py-3 font-medium">Medio de Pago</th>
                 <th className="px-6 py-3 font-medium">Estado</th>
+                <th className="px-6 py-3 font-medium text-right">Recibo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -113,9 +135,7 @@ export function Payments() {
                       {payment.clienteNombre}
                     </button>
                   </td>
-                  <td className="px-6 py-4 text-muted">
-                    {payment.nroCuota.toString().padStart(2, '0')}/{payment.cantidadCuotas || '-'}
-                  </td>
+                  <td className="px-6 py-4 text-muted">{payment.concepto}</td>
                   <td className="px-6 py-4 text-main font-semibold">{formatCurrency(payment.monto || 0)}</td>
                   <td className="px-6 py-4 text-muted">{formatDate(payment.fechaPago)}</td>
                   <td className="px-6 py-4 text-muted capitalize">{payment.medioPago}</td>
@@ -125,11 +145,22 @@ export function Payments() {
                         {payment.estado}
                      </StatusBadge>
                   </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => handleDescargarRecibo(payment)}
+                      disabled={generandoReciboId === payment.id}
+                      title="Descargar recibo"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                    >
+                      {generandoReciboId === payment.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />}
+                      Recibo
+                    </button>
+                  </td>
                 </tr>
               ))}
               {filteredPayments?.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-muted">
+                  <td colSpan={7} className="px-6 py-8 text-center text-muted">
                     No se encontraron pagos
                   </td>
                 </tr>

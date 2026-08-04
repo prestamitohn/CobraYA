@@ -1,8 +1,8 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { PrestamoDTO, ResumenPrestamoDTO, Cuota, PagoOutputDTO } from '../types';
+import { PrestamoDTO, ResumenPrestamoDTO, Cuota } from '../types';
 import { formatCurrency, formatDate } from './formatters';
-import { getPaymentMethodLabel } from '../types/enums';
+import type { PagoDetalle } from '../services/paymentService';
 
 export const exportToPDF = (title: string, headers: string[], data: string[][], filename: string) => {
   const doc = new jsPDF();
@@ -118,85 +118,123 @@ export const exportLoanDetailPDF = (loan: PrestamoDTO, summary: ResumenPrestamoD
   doc.save(`Prestamo_${loan.idPrestamo}_${loan.dniPrestatario}.pdf`);
 };
 
-export const exportPaymentVoucherPDF = (payment: PagoOutputDTO) => {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a5' // Voucher size usually smaller, A5 is good
-  });
+export interface ReciboNegocio {
+  nombre: string;
+  logoUrl?: string | null;
+  rtn?: string | null;
+}
+
+/** Convierte una URL de imagen (p. ej. el logo del negocio en Storage) a data URL para poder embeberla en el PDF; null si falla (CORS, red, formato no soportado por jsPDF). */
+async function imageUrlToDataUrl(url: string): Promise<{ dataUrl: string; format: 'PNG' | 'JPEG' } | null> {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const format = blob.type === 'image/png' ? 'PNG' : blob.type === 'image/jpeg' ? 'JPEG' : null;
+    if (!format) return null;
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    return { dataUrl, format };
+  } catch {
+    return null;
+  }
+}
+
+/** Comprobante de pago con membrete del negocio (nombre, logo, RTN) — cubre pagos de cuota, gasto administrativo y multa. */
+export async function exportReciboPago(pago: PagoDetalle, negocio: ReciboNegocio): Promise<void> {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
+  const verde: [number, number, number] = [5, 150, 105];
 
-  // Border
-  doc.setDrawColor(124, 58, 237);
+  doc.setDrawColor(...verde);
   doc.setLineWidth(1);
   doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
 
-  // Header
-  doc.setFillColor(124, 58, 237);
+  doc.setFillColor(...verde);
   doc.rect(6, 6, pageWidth - 12, 25, 'F');
-  
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.text('COMPROBANTE DE PAGO', pageWidth / 2, 18, { align: 'center' });
-  doc.setFontSize(10);
-  doc.text('CobraYA', pageWidth / 2, 25, { align: 'center' });
 
-  // Voucher Info
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(10);
-  
-  doc.text(`Nro. Comprobante:`, 15, 45);
-  doc.setFont("helvetica", "bold");
-  doc.text(`#${payment.idPago.toString().padStart(8, '0')}`, 50, 45);
-  doc.setFont("helvetica", "normal");
-
-  doc.text(`Fecha:`, 15, 52);
-  doc.text(payment.fecPago ? new Date(payment.fecPago).toLocaleDateString() + ' ' + new Date(payment.fecPago).toLocaleTimeString() : '-', 50, 52);
-
-  // Client Info
-  doc.setDrawColor(200);
-  doc.line(15, 60, pageWidth - 15, 60);
-  
-  doc.text(`Cliente:`, 15, 70);
-  doc.setFont("helvetica", "bold");
-  const clienteNombre = payment.nombreCliente && payment.apellidoCliente 
-    ? `${payment.nombreCliente} ${payment.apellidoCliente}`
-    : 'Consumidor Final';
-  doc.text(clienteNombre, 50, 70);
-  doc.setFont("helvetica", "normal");
-
-  if (payment.dniCliente) {
-    doc.text(`DNI:`, 15, 77);
-    doc.text(payment.dniCliente.toString(), 50, 77);
+  const logo = negocio.logoUrl ? await imageUrlToDataUrl(negocio.logoUrl) : null;
+  const textoInicioX = logo ? 32 : pageWidth / 2;
+  const align = logo ? 'left' : 'center';
+  if (logo) {
+    try {
+      doc.addImage(logo.dataUrl, logo.format, 10, 8, 18, 18);
+    } catch {
+      // si falla el embed, se sigue con el header solo de texto
+    }
   }
 
-  // Payment Details
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.text(negocio.nombre || 'CobraYA', textoInicioX, 16, { align });
+  doc.setFontSize(9);
+  doc.text('COMPROBANTE DE PAGO', textoInicioX, 23, { align });
+  if (negocio.rtn) {
+    doc.setFontSize(7);
+    doc.text(`RTN: ${negocio.rtn}`, textoInicioX, 28, { align });
+  }
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(10);
+
+  doc.text('Nro. Comprobante:', 15, 45);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`#${pago.id.slice(0, 8).toUpperCase()}`, 55, 45);
+  doc.setFont('helvetica', 'normal');
+
+  doc.text('Fecha:', 15, 52);
+  doc.text(formatDate(pago.fechaPago), 55, 52);
+
+  doc.setDrawColor(200);
+  doc.line(15, 60, pageWidth - 15, 60);
+
+  doc.text('Cliente:', 15, 70);
+  doc.setFont('helvetica', 'bold');
+  doc.text(pago.clienteNombre, 55, 70);
+  doc.setFont('helvetica', 'normal');
+
+  if (pago.clienteDocumento) {
+    doc.text('Identidad:', 15, 77);
+    doc.text(pago.clienteDocumento, 55, 77);
+  }
+
   doc.line(15, 85, pageWidth - 15, 85);
-  
-  doc.text(`Concepto:`, 15, 95);
-  doc.text(`Pago de Cuota #${payment.nroCuota}`, 50, 95);
-  
-  doc.text(`Medio de Pago:`, 15, 102);
-  doc.text(getPaymentMethodLabel(Number(payment.medioPago)), 50, 102);
 
-  // Amount
+  doc.text('Concepto:', 15, 95);
+  doc.text(pago.concepto, 55, 95);
+
+  doc.text('Medio de Pago:', 15, 102);
+  doc.text(pago.medioPago, 55, 102);
+
+  if (pago.descuento > 0) {
+    doc.text('Descuento:', 15, 109);
+    doc.text(formatCurrency(pago.descuento), 55, 109);
+  }
+  if (pago.recargo > 0) {
+    doc.text('Recargo:', 15, pago.descuento > 0 ? 116 : 109);
+    doc.text(formatCurrency(pago.recargo), 55, pago.descuento > 0 ? 116 : 109);
+  }
+
   doc.setFillColor(245, 247, 250);
-  doc.rect(15, 115, pageWidth - 30, 25, 'F');
-  
-  doc.setFontSize(12);
-  doc.text('Total Pagado', pageWidth / 2, 122, { align: 'center' });
-  doc.setFontSize(18);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(124, 58, 237);
-  doc.text(formatCurrency(payment.monto), pageWidth / 2, 133, { align: 'center' });
+  doc.rect(15, 122, pageWidth - 30, 25, 'F');
 
-  // Footer
-  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.text('Total Pagado', pageWidth / 2, 130, { align: 'center' });
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...verde);
+  doc.text(formatCurrency(pago.monto), pageWidth / 2, 141, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
   doc.setTextColor(100);
   doc.setFontSize(8);
   doc.text('Este documento sirve como constancia de pago válida.', pageWidth / 2, pageHeight - 15, { align: 'center' });
   doc.text('Gracias por confiar en nosotros.', pageWidth / 2, pageHeight - 10, { align: 'center' });
 
-  doc.save(`Comprobante_Pago_${payment.idPago}.pdf`);
-};
+  doc.save(`Recibo_${pago.id.slice(0, 8)}.pdf`);
+}
