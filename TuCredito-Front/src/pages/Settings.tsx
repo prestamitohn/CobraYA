@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, Shield, Moon, User, Globe, Check, AlertCircle, Loader2, Eye, EyeOff, X, Building2, Image, Trash2, Upload } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Moon, User, Globe, Check, AlertCircle, Loader2, Eye, EyeOff, X, Building2, Image, Trash2, Upload, Bell, BellOff } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { updateProfile } from '../services/authService';
 import { getMyTenant, updateTenant, uploadTenantLogo, removeTenantLogo } from '../services/tenantService';
+import { isPushSupported, getNotificationPermission, hasActivePushSubscription, subscribeToPush, unsubscribeFromPush } from '../services/pushService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -107,6 +108,39 @@ export function Settings() {
         logoMutation.mutate(file);
         e.target.value = '';
     };
+
+    const pushSupported = isPushSupported();
+    const notificationPermission = getNotificationPermission();
+
+    const { data: hasPushSubscription, refetch: refetchPushSubscription } = useQuery({
+        queryKey: ['pushSubscriptionStatus'],
+        queryFn: hasActivePushSubscription,
+        enabled: pushSupported,
+    });
+
+    const subscribePushMutation = useMutation({
+        mutationFn: () => subscribeToPush(user!.tenantId, user!.id),
+        onSuccess: (result) => {
+            if (result.ok) {
+                addToast('Notificaciones activadas correctamente', 'success');
+            } else if (result.reason === 'permission_denied') {
+                addToast('Debes permitir las notificaciones en tu navegador', 'error');
+            } else {
+                addToast('No se pudieron activar las notificaciones', 'error');
+            }
+            refetchPushSubscription();
+        },
+        onError: () => addToast('No se pudieron activar las notificaciones', 'error'),
+    });
+
+    const unsubscribePushMutation = useMutation({
+        mutationFn: unsubscribeFromPush,
+        onSuccess: () => {
+            addToast('Notificaciones desactivadas', 'success');
+            refetchPushSubscription();
+        },
+        onError: () => addToast('Error al desactivar las notificaciones', 'error'),
+    });
 
     const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<PasswordFormData>({
         defaultValues: { nuevaContrasenia: '', confirmarContrasenia: '' }
@@ -372,6 +406,46 @@ export function Settings() {
                 {theme === 'dark' ? <Moon className="h-4 w-4" /> : <SettingsIcon className="h-4 w-4" />}
                 {theme === 'dark' ? 'Modo Oscuro' : 'Modo Claro'}
               </button>
+           </div>
+        </div>
+      </div>
+
+      <div className="glass-panel rounded-xl border border-border overflow-hidden">
+        <div className="p-6 border-b border-border">
+          <h2 className="text-lg font-semibold text-main flex items-center gap-2">
+            <Bell className="h-5 w-5 text-primary-500" />
+            Notificaciones
+          </h2>
+        </div>
+        <div className="p-6 space-y-4">
+           <div className="flex items-center justify-between py-2 gap-4">
+              <div>
+                <p className="font-medium text-main">Notificaciones Push</p>
+                <p className="text-sm text-muted">Recibe un resumen diario de cuotas por cobrar y en mora, aunque no tengas la app abierta.</p>
+              </div>
+              {!pushSupported ? (
+                <span className="text-xs text-muted italic whitespace-nowrap">No disponible</span>
+              ) : notificationPermission === 'denied' ? (
+                <span className="text-xs text-red-400 italic whitespace-nowrap">Bloqueadas en el navegador</span>
+              ) : hasPushSubscription ? (
+                <button
+                  onClick={() => unsubscribePushMutation.mutate()}
+                  disabled={unsubscribePushMutation.isPending}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm hover:bg-surfaceHighlight transition-colors text-main disabled:opacity-50 whitespace-nowrap"
+                >
+                  {unsubscribePushMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellOff className="h-4 w-4" />}
+                  Desactivar
+                </button>
+              ) : (
+                <button
+                  onClick={() => subscribePushMutation.mutate()}
+                  disabled={subscribePushMutation.isPending}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  {subscribePushMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                  Activar
+                </button>
+              )}
            </div>
         </div>
       </div>
