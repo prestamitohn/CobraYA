@@ -21,6 +21,7 @@ interface CrearTenantPayload {
   nombreUsuario: string;
   correo: string;
   password: string;
+  tipoTenant?: 'prestamista' | 'cooperativa';
 }
 
 function jsonResponse(body: unknown, status: number): Response {
@@ -50,9 +51,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Body inválido, se esperaba JSON' }, 400);
   }
 
-  const { nombreNegocio, nombreUsuario, correo, password } = payload;
+  const { nombreNegocio, nombreUsuario, correo, password, tipoTenant } = payload;
   if (!nombreNegocio || !nombreUsuario || !correo || !password) {
     return jsonResponse({ error: 'Payload incompleto' }, 400);
+  }
+  if (tipoTenant && tipoTenant !== 'prestamista' && tipoTenant !== 'cooperativa') {
+    return jsonResponse({ error: 'tipoTenant inválido' }, 400);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -77,6 +81,7 @@ Deno.serve(async (req) => {
     user_metadata: {
       nombre_negocio: nombreNegocio,
       nombre_usuario: nombreUsuario,
+      tipo_tenant: tipoTenant ?? 'prestamista',
     },
   });
 

@@ -5,12 +5,14 @@ export interface SignUpOwnerInput {
   nombreUsuario: string;
   correo: string;
   password: string;
+  tipoTenant: 'prestamista' | 'cooperativa';
 }
 
 /**
  * Autoregistro de un prestamista nuevo (tenant nuevo). El trigger
  * handle_new_user() en Postgres crea el tenant + la fila en `usuarios` (rol owner)
- * a partir de raw_user_meta_data — ver supabase/migrations/20260721010300_auth_onboarding.sql.
+ * a partir de raw_user_meta_data — ver supabase/migrations/20260721010300_auth_onboarding.sql
+ * y supabase/migrations/20260731010000_cooperativas.sql (tipo_tenant).
  */
 export async function signUpOwner(input: SignUpOwnerInput) {
   const { data, error } = await supabase.auth.signUp({
@@ -20,6 +22,7 @@ export async function signUpOwner(input: SignUpOwnerInput) {
       data: {
         nombre_negocio: input.nombreNegocio,
         nombre_usuario: input.nombreUsuario,
+        tipo_tenant: input.tipoTenant,
       },
     },
   });

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { EstadoSuscripcion, Usuario } from '../types/cobraya';
+import { EstadoSuscripcion, TipoTenant, Usuario } from '../types/cobraya';
 
 interface TenantEstado {
   nombre: string;
@@ -9,6 +9,7 @@ interface TenantEstado {
   fechaInicio: string;
   diasRestantesPrueba: number;
   trialVencido: boolean;
+  tipoTenant: TipoTenant;
 }
 
 interface AuthContextType {
@@ -65,6 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fechaInicio: row.fecha_inicio,
         diasRestantesPrueba: row.dias_restantes_prueba,
         trialVencido: row.trial_vencido,
+        tipoTenant: row.tipo_tenant,
       } : null);
     });
   };

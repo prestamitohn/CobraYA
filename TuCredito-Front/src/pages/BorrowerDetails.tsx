@@ -4,10 +4,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBorrowerByDocumento, updateBorrower } from '../services/borrowerService';
 import { getLoans } from '../services/loanService';
 import { getClasificacionesClientes, establecerClasificacionManual, quitarClasificacionManual } from '../services/clasificacionService';
-import { ArrowLeft, User, Users, Edit, Save, X, ShieldAlert, TrendingUp, UserCog, RotateCcw } from 'lucide-react';
-import { getEstadoPrestamoLabel, getClasificacionLabel, getClasificacionColorClass, ClasificacionCliente } from '../types/cobraya';
+import { getAportacionesByCliente } from '../services/cooperativaService';
+import { getMyTenant } from '../services/tenantService';
+import { ArrowLeft, User, Users, Edit, Save, X, ShieldAlert, TrendingUp, UserCog, RotateCcw, PiggyBank, Plus } from 'lucide-react';
+import { getEstadoPrestamoLabel, getClasificacionLabel, getClasificacionColorClass, ClasificacionCliente, getTipoAportacionLabel } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { formatCurrency } from '../utils/formatters';
+import { AportacionModal } from '../components/cooperativa/AportacionModal';
+import { formatCurrency, formatDate } from '../utils/formatters';
 import { useToast } from '../context/ToastContext';
 
 export function BorrowerDetails() {
@@ -17,10 +20,14 @@ export function BorrowerDetails() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
-  const validTabs = ['info', 'loans'];
+  const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant });
+  const esCooperativa = tenant?.tipoTenant === 'cooperativa';
+
+  const validTabs = ['info', 'loans', 'aportaciones'];
   const tabParam = searchParams.get('tab');
-  const initialTab = validTabs.includes(tabParam || '') ? (tabParam as 'info' | 'loans') : 'info';
-  const [activeTab, setActiveTab] = useState<'info' | 'loans'>(initialTab);
+  const initialTab = validTabs.includes(tabParam || '') ? (tabParam as 'info' | 'loans' | 'aportaciones') : 'info';
+  const [activeTab, setActiveTab] = useState<'info' | 'loans' | 'aportaciones'>(initialTab);
+  const [isAportacionModalOpen, setIsAportacionModalOpen] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<{ correo?: string; telefono?: string; domicilio?: string }>({});
@@ -44,6 +51,17 @@ export function BorrowerDetails() {
     queryKey: ['clasificaciones'],
     queryFn: getClasificacionesClientes,
   });
+
+  const { data: aportaciones } = useQuery({
+    queryKey: ['aportacionesCliente', borrower?.id],
+    queryFn: () => getAportacionesByCliente(borrower!.id),
+    enabled: esCooperativa && !!borrower?.id,
+  });
+
+  const saldoAportaciones = (aportaciones ?? []).reduce(
+    (acc, a) => acc + (a.tipo === 'retiro' ? -a.monto : a.monto),
+    0,
+  );
 
   const borrowerLoans = loans?.filter((l) => l.clienteId === borrower?.id) || [];
   const clasificacion = clasificaciones?.find((c) => c.clienteId === borrower?.id);
@@ -139,6 +157,14 @@ export function BorrowerDetails() {
         >
           Préstamos ({borrowerLoans.length})
         </button>
+        {esCooperativa && (
+          <button
+            onClick={() => setActiveTab('aportaciones')}
+            className={`px-4 py-2 border-b-2 transition-colors ${activeTab === 'aportaciones' ? 'border-primary-500 text-primary-500' : 'border-transparent text-muted hover:text-main'}`}
+          >
+            Aportaciones
+          </button>
+        )}
       </div>
 
       <div className="mt-6">
@@ -397,7 +423,77 @@ export function BorrowerDetails() {
              </div>
            </div>
         )}
+
+        {activeTab === 'aportaciones' && esCooperativa && (
+          <div className="space-y-4">
+            <div className="glass-panel p-4 rounded-xl border border-border flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-3 rounded-lg bg-primary-500/10 text-primary-500 flex-shrink-0">
+                  <PiggyBank className="h-6 w-6" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm text-muted truncate">Saldo de aportaciones</p>
+                  <p className="text-xl font-bold text-main truncate">{formatCurrency(saldoAportaciones)}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAportacionModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors flex-shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                Registrar Aportación
+              </button>
+            </div>
+
+            <div className="glass-panel rounded-xl overflow-hidden border border-border">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-surfaceHighlight text-muted">
+                    <tr>
+                      <th className="px-6 py-3 font-medium">Fecha</th>
+                      <th className="px-6 py-3 font-medium">Tipo</th>
+                      <th className="px-6 py-3 font-medium">Observaciones</th>
+                      <th className="px-6 py-3 font-medium text-right">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {aportaciones?.map((a) => (
+                      <tr key={a.id} className="hover:bg-surfaceHighlight/50 transition-colors">
+                        <td className="px-6 py-4 text-muted">{formatDate(a.fecha)}</td>
+                        <td className="px-6 py-4">
+                          <StatusBadge variant={a.tipo === 'retiro' ? 'error' : 'success'}>
+                            {getTipoAportacionLabel(a.tipo)}
+                          </StatusBadge>
+                        </td>
+                        <td className="px-6 py-4 text-muted">{a.observaciones || '-'}</td>
+                        <td className={`px-6 py-4 text-right font-medium ${a.tipo === 'retiro' ? 'text-red-400' : 'text-main'}`}>
+                          {a.tipo === 'retiro' ? '- ' : ''}{formatCurrency(a.monto)}
+                        </td>
+                      </tr>
+                    ))}
+                    {(aportaciones?.length ?? 0) === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-8 text-center text-muted">
+                          Este socio no tiene aportaciones registradas
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {esCooperativa && borrower && (
+        <AportacionModal
+          isOpen={isAportacionModalOpen}
+          onClose={() => setIsAportacionModalOpen(false)}
+          clienteIdFijo={borrower.id}
+          clienteNombreFijo={`${borrower.nombre} ${borrower.apellido ?? ''}`}
+        />
+      )}
     </div>
   );
 }

@@ -23,6 +23,8 @@ const Payments = lazy(() => import('./pages/Payments').then((m) => ({ default: m
 const Multas = lazy(() => import('./pages/Multas').then((m) => ({ default: m.Multas })));
 const Calculator = lazy(() => import('./pages/Calculator').then((m) => ({ default: m.Calculator })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
+const Aportaciones = lazy(() => import('./pages/Aportaciones').then((m) => ({ default: m.Aportaciones })));
+const Excedentes = lazy(() => import('./pages/Excedentes').then((m) => ({ default: m.Excedentes })));
 const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
 const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })));
 
@@ -84,6 +86,21 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Aportaciones/Excedentes solo aplican a tenants tipo cooperativa — los RPC ya lo validan server-side, esto solo evita que un prestamista llegue a una página que no le sirve. */
+function CooperativaRoute({ children }: { children: React.ReactNode }) {
+  const { isLoading, tenantEstado } = useAuth();
+
+  if (isLoading) {
+    return <PageSpinner />;
+  }
+
+  if (tenantEstado && tenantEstado.tipoTenant !== 'cooperativa') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   return (
     <Suspense fallback={<PageSpinner />}>
@@ -106,6 +123,8 @@ function AppRoutes() {
           <Route path="borrowers/:documento" element={<BorrowerDetails />} />
           <Route path="payments" element={<Payments />} />
           <Route path="multas" element={<Multas />} />
+          <Route path="aportaciones" element={<CooperativaRoute><Aportaciones /></CooperativaRoute>} />
+          <Route path="excedentes" element={<CooperativaRoute><Excedentes /></CooperativaRoute>} />
           <Route path="calculator" element={<Calculator />} />
           <Route path="settings" element={<Settings />} />
           <Route path="admin" element={<AdminRoute><Admin /></AdminRoute>} />

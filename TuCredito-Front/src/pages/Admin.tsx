@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listTenants, getPlatformMetrics, setTenantEstado, createTenant } from '../services/adminService';
 import { adminListPaymentAccounts, adminCreatePaymentAccount, adminUpdatePaymentAccount, adminDeletePaymentAccount, PaymentAccountInput } from '../services/paymentAccountService';
-import { EstadoSuscripcion, PlatformPaymentAccount, TipoCuentaPago, getTipoCuentaPagoLabel } from '../types/cobraya';
+import { EstadoSuscripcion, PlatformPaymentAccount, TipoCuentaPago, TipoTenant, getTipoCuentaPagoLabel } from '../types/cobraya';
 import { Building2, Users, Wallet, TrendingUp, Plus, X, Loader2, ShieldAlert, CreditCard, Pencil, Trash2, Power, Check } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -24,6 +24,7 @@ function CrearTenantModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   const [nombreUsuario, setNombreUsuario] = useState('');
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
+  const [tipoTenant, setTipoTenant] = useState<TipoTenant>('prestamista');
 
   const mutation = useMutation({
     mutationFn: createTenant,
@@ -35,6 +36,7 @@ function CrearTenantModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
       setNombreUsuario('');
       setCorreo('');
       setPassword('');
+      setTipoTenant('prestamista');
       onClose();
     },
     onError: (error: any) => {
@@ -54,10 +56,18 @@ function CrearTenantModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            mutation.mutate({ nombreNegocio, nombreUsuario, correo, password });
+            mutation.mutate({ nombreNegocio, nombreUsuario, correo, password, tipoTenant });
           }}
           className="p-6 space-y-4"
         >
+          <div>
+            <label className="text-sm font-medium text-muted">Tipo</label>
+            <select value={tipoTenant} onChange={(e) => setTipoTenant(e.target.value as TipoTenant)}
+              className="mt-1 w-full bg-surfaceHighlight border border-border rounded-lg px-4 py-2 text-main focus:border-primary-500 focus:outline-none [&>option]:bg-surface">
+              <option value="prestamista">Prestamista</option>
+              <option value="cooperativa">Cooperativa</option>
+            </select>
+          </div>
           <div>
             <label className="text-sm font-medium text-muted">Nombre del Negocio</label>
             <input required value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)}
@@ -390,7 +400,14 @@ export function Admin() {
             <tbody className="divide-y divide-border">
               {tenants?.map((t) => (
                 <tr key={t.id} className="hover:bg-surfaceHighlight/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-main max-w-[180px] truncate">{t.nombre}</td>
+                  <td className="px-6 py-4 max-w-[180px]">
+                    <p className="font-medium text-main truncate">{t.nombre}</p>
+                    {t.tipoTenant === 'cooperativa' && (
+                      <span className="inline-block mt-1 text-[10px] font-medium uppercase tracking-wide text-primary-500 bg-primary-500/10 rounded px-1.5 py-0.5">
+                        Cooperativa
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 max-w-[220px]">
                     <p className="text-main truncate">{t.propietarioNombre || '-'}</p>
                     {t.propietarioCorreo && (

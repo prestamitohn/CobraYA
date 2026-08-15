@@ -8,9 +8,10 @@ interface TenantRow {
   moneda: string;
   estado_suscripcion: Tenant['estadoSuscripcion'];
   logo_url: string | null;
+  tipo_tenant: Tenant['tipoTenant'];
 }
 
-const TENANT_SELECT = 'id, nombre, rtn, moneda, estado_suscripcion, logo_url';
+const TENANT_SELECT = 'id, nombre, rtn, moneda, estado_suscripcion, logo_url, tipo_tenant';
 
 function mapTenant(row: TenantRow): Tenant {
   return {
@@ -20,6 +21,7 @@ function mapTenant(row: TenantRow): Tenant {
     moneda: row.moneda,
     estadoSuscripcion: row.estado_suscripcion,
     logoUrl: row.logo_url,
+    tipoTenant: row.tipo_tenant,
   };
 }
 

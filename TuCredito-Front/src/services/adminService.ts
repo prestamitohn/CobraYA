@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { EstadoSuscripcion } from '../types/cobraya';
+import { EstadoSuscripcion, TipoTenant } from '../types/cobraya';
 
 export interface AdminTenantRow {
   id: string;
@@ -11,6 +11,7 @@ export interface AdminTenantRow {
   createdAt: string;
   propietarioNombre: string | null;
   propietarioCorreo: string | null;
+  tipoTenant: TipoTenant;
   cantidadUsuarios: number;
   cantidadClientes: number;
   cantidadPrestamos: number;
@@ -42,6 +43,7 @@ export async function listTenants(): Promise<AdminTenantRow[]> {
     createdAt: row.created_at,
     propietarioNombre: row.propietario_nombre,
     propietarioCorreo: row.propietario_correo,
+    tipoTenant: row.tipo_tenant,
     cantidadUsuarios: Number(row.cantidad_usuarios),
     cantidadClientes: Number(row.cantidad_clientes),
     cantidadPrestamos: Number(row.cantidad_prestamos),
@@ -79,6 +81,7 @@ export interface CreateTenantInput {
   nombreUsuario: string;
   correo: string;
   password: string;
+  tipoTenant?: TipoTenant;
 }
 
 export async function createTenant(input: CreateTenantInput): Promise<{ userId: string }> {

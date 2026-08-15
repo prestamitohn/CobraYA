@@ -11,6 +11,47 @@ export type FrecuenciaCobro = 'diario' | 'semanal' | 'quincenal' | 'mensual';
 export type FrecuenciaGastoAdministrativo = 'semanal' | 'mensual' | 'por_cuota';
 export type EstadoSuscripcion = 'prueba' | 'activa' | 'suspendida' | 'cancelada';
 export type TipoCuentaPago = 'banco' | 'tigo_money' | 'paypal' | 'otro';
+export type TipoTenant = 'prestamista' | 'cooperativa';
+export type TipoAportacion = 'obligatoria' | 'extraordinaria' | 'retiro';
+
+export function getTipoAportacionLabel(tipo: TipoAportacion): string {
+  switch (tipo) {
+    case 'obligatoria': return 'Obligatoria';
+    case 'extraordinaria': return 'Extraordinaria';
+    case 'retiro': return 'Retiro';
+    default: return tipo;
+  }
+}
+
+export interface Aportacion {
+  id: string;
+  clienteId: string;
+  tipo: TipoAportacion;
+  monto: number;
+  fecha: string;
+  observaciones?: string | null;
+  createdAt: string;
+}
+
+export interface ExcedenteDetalleSocio {
+  clienteId: string;
+  nombre: string;
+  apellido?: string | null;
+  interesPagado: number;
+  proporcion: number;
+  montoExcedente: number;
+}
+
+export interface ExcedentePeriodo {
+  id: string;
+  fechaDesde: string;
+  fechaHasta: string;
+  ingresosTotales: number;
+  porcentajeReserva: number;
+  montoReserva: number;
+  excedenteDistribuible: number;
+  createdAt: string;
+}
 
 export interface PlatformPaymentAccount {
   id: string;
@@ -51,6 +92,7 @@ export interface Tenant {
   moneda: string;
   estadoSuscripcion: EstadoSuscripcion;
   logoUrl?: string | null;
+  tipoTenant?: TipoTenant;
 }
 
 export interface Garante {

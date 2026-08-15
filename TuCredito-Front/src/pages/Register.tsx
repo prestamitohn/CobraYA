@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { signUpOwner } from '../services/authService';
 import { useNavigate, Link } from 'react-router-dom';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Landmark, Users } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
 interface RegisterFormData {
@@ -19,6 +19,7 @@ export function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [tipoTenant, setTipoTenant] = useState<'prestamista' | 'cooperativa'>('prestamista');
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
@@ -29,6 +30,7 @@ export function Register() {
         nombreUsuario: data.nombre,
         correo: data.correo,
         password: data.contrasenia,
+        tipoTenant,
       });
       addToast('Registro exitoso. Por favor inicia sesión', 'success');
       navigate('/login');
@@ -61,7 +63,41 @@ export function Register() {
         <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
           <div className="space-y-4">
             <div>
-              <label htmlFor="nombreNegocio" className="block text-sm font-medium text-muted">Nombre del negocio</label>
+              <label className="block text-sm font-medium text-muted mb-2">Tipo de cuenta</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTipoTenant('prestamista')}
+                  className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-3 text-center transition-all duration-200 ${
+                    tipoTenant === 'prestamista'
+                      ? 'border-primary-500 bg-primary-500/10 ring-1 ring-primary-500'
+                      : 'border-border bg-surface/50 hover:border-primary-500/50'
+                  }`}
+                >
+                  <Landmark className={`h-6 w-6 ${tipoTenant === 'prestamista' ? 'text-primary-400' : 'text-muted'}`} />
+                  <span className={`text-sm font-medium ${tipoTenant === 'prestamista' ? 'text-main' : 'text-muted'}`}>Prestamista</span>
+                  <span className="text-xs text-muted leading-tight">Presto dinero por mi cuenta</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoTenant('cooperativa')}
+                  className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-3 text-center transition-all duration-200 ${
+                    tipoTenant === 'cooperativa'
+                      ? 'border-primary-500 bg-primary-500/10 ring-1 ring-primary-500'
+                      : 'border-border bg-surface/50 hover:border-primary-500/50'
+                  }`}
+                >
+                  <Users className={`h-6 w-6 ${tipoTenant === 'cooperativa' ? 'text-primary-400' : 'text-muted'}`} />
+                  <span className={`text-sm font-medium ${tipoTenant === 'cooperativa' ? 'text-main' : 'text-muted'}`}>Cooperativa</span>
+                  <span className="text-xs text-muted leading-tight">Socios con aportaciones y excedentes</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="nombreNegocio" className="block text-sm font-medium text-muted">
+                {tipoTenant === 'cooperativa' ? 'Nombre de la cooperativa' : 'Nombre del negocio'}
+              </label>
               <input
                 id="nombreNegocio"
                 {...register('nombreNegocio', { required: 'El nombre del negocio es obligatorio' })}

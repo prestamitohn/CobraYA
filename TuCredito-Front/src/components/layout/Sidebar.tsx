@@ -1,19 +1,30 @@
-import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert, Gavel } from 'lucide-react';
+import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert, Gavel, PiggyBank, TrendingUp } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { getMyTenant } from '../../services/tenantService';
 
-const sidebarItems = [
-  { icon: LayoutDashboard, label: 'Inicio', to: '/' },
-  { icon: Wallet, label: 'Préstamos', to: '/loans' },
-  { icon: Users, label: 'Clientes', to: '/borrowers' },
-  { icon: Banknote, label: 'Pagos', to: '/payments' },
-  { icon: Gavel, label: 'Multas', to: '/multas' },
-  { icon: Calculator, label: 'Calculadora', to: '/calculator' },
-  { icon: Settings, label: 'Configuración', to: '/settings' },
-];
+function buildSidebarItems(esCooperativa: boolean) {
+  const items = [
+    { icon: LayoutDashboard, label: 'Inicio', to: '/' },
+    { icon: Wallet, label: 'Préstamos', to: '/loans' },
+    { icon: Users, label: esCooperativa ? 'Socios' : 'Clientes', to: '/borrowers' },
+    { icon: Banknote, label: 'Pagos', to: '/payments' },
+    { icon: Gavel, label: 'Multas', to: '/multas' },
+  ];
+  if (esCooperativa) {
+    items.push(
+      { icon: PiggyBank, label: 'Aportaciones', to: '/aportaciones' },
+      { icon: TrendingUp, label: 'Excedentes', to: '/excedentes' },
+    );
+  }
+  items.push(
+    { icon: Calculator, label: 'Calculadora', to: '/calculator' },
+    { icon: Settings, label: 'Configuración', to: '/settings' },
+  );
+  return items;
+}
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -23,6 +34,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { logout, user, esSuperadmin } = useAuth();
   const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant, enabled: !esSuperadmin && !!user });
+  const sidebarItems = buildSidebarItems(tenant?.tipoTenant === 'cooperativa');
 
   return (
     <>
