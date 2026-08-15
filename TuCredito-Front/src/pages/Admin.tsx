@@ -377,6 +377,7 @@ export function Admin() {
             <thead className="bg-surfaceHighlight text-muted">
               <tr>
                 <th className="px-6 py-3 font-medium">Negocio</th>
+                <th className="px-6 py-3 font-medium">Propietario</th>
                 <th className="px-6 py-3 font-medium">Alta</th>
                 <th className="px-6 py-3 font-medium">Usuarios</th>
                 <th className="px-6 py-3 font-medium">Clientes</th>
@@ -389,8 +390,16 @@ export function Admin() {
             <tbody className="divide-y divide-border">
               {tenants?.map((t) => (
                 <tr key={t.id} className="hover:bg-surfaceHighlight/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-main">{t.nombre}</td>
-                  <td className="px-6 py-4 text-muted">{formatDate(t.createdAt)}</td>
+                  <td className="px-6 py-4 font-medium text-main max-w-[180px] truncate">{t.nombre}</td>
+                  <td className="px-6 py-4 max-w-[220px]">
+                    <p className="text-main truncate">{t.propietarioNombre || '-'}</p>
+                    {t.propietarioCorreo && (
+                      <a href={`mailto:${t.propietarioCorreo}`} className="text-xs text-primary-500 hover:underline truncate block">
+                        {t.propietarioCorreo}
+                      </a>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-muted whitespace-nowrap">{formatDate(t.createdAt)}</td>
                   <td className="px-6 py-4 text-muted">{t.cantidadUsuarios}</td>
                   <td className="px-6 py-4 text-muted">{t.cantidadClientes}</td>
                   <td className="px-6 py-4 text-muted">{t.cantidadPrestamos}</td>
@@ -427,7 +436,7 @@ export function Admin() {
               ))}
               {tenants?.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-muted">No hay tenants registrados todavía</td>
+                  <td colSpan={9} className="px-6 py-8 text-center text-muted">No hay tenants registrados todavía</td>
                 </tr>
               )}
             </tbody>

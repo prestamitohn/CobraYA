@@ -354,6 +354,7 @@ export function BorrowerDetails() {
 
         {activeTab === 'loans' && (
            <div className="glass-panel rounded-xl overflow-hidden border border-border">
+             <div className="overflow-x-auto">
              <table className="w-full text-left text-sm">
                <thead className="bg-surfaceHighlight text-muted">
                  <tr>
@@ -393,6 +394,7 @@ export function BorrowerDetails() {
                  )}
                </tbody>
              </table>
+             </div>
            </div>
         )}
       </div>

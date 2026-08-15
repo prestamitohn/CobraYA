@@ -238,23 +238,23 @@ export function Borrowers() {
                 ? 'bg-red-500/5 border-red-500/30 hover:border-red-500/50'
                 : 'bg-surfaceHighlight/30 border-border hover:border-primary-500/50'
             }`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+              <div className="flex items-start justify-between mb-4 gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0 ${
                     isDelinquent ? 'bg-gradient-to-br from-red-500 to-red-600' : 'bg-gradient-to-br from-primary-500 to-accent-gold'
                   }`}>
                     {borrower.nombre?.[0]}{borrower.apellido?.[0]}
                   </div>
-                  <div>
-                    <h3 className={`font-semibold transition-colors ${
+                  <div className="min-w-0">
+                    <h3 className={`font-semibold transition-colors truncate ${
                       isDelinquent ? 'text-red-400 group-hover:text-red-300' : 'text-main group-hover:text-primary-400'
                     }`}>
                       {borrower.nombre} {borrower.apellido}
                     </h3>
-                    <p className="text-xs text-muted">Identidad: {borrower.documento}</p>
+                    <p className="text-xs text-muted truncate">Identidad: {borrower.documento}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <span className={`px-2 py-1 rounded-md text-xs font-medium ${borrower.activo ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
                     {borrower.activo ? 'Activo' : 'Inactivo'}
                   </span>
@@ -279,17 +279,17 @@ export function Borrowers() {
               )}
 
               <div className="space-y-2 text-sm text-muted">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  <span>{borrower.correo || 'No registrado'}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Mail className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{borrower.correo || 'No registrado'}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4" />
-                  <span>{borrower.telefono || 'No registrado'}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Phone className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{borrower.telefono || 'No registrado'}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  <span>{borrower.domicilio || 'No registrado'}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <MapPin className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{borrower.domicilio || 'No registrado'}</span>
                 </div>
               </div>
 

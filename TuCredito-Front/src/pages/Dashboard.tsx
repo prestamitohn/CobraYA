@@ -594,17 +594,17 @@ export function Dashboard() {
             <div className="space-y-4">
                 {recentTransactions && recentTransactions.length > 0 ? (
                     recentTransactions.map((tx, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-surfaceHighlight/50 transition-colors border border-transparent hover:border-border">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-full ${tx.type === 'Pago' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                        <div key={i} className="flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-surfaceHighlight/50 transition-colors border border-transparent hover:border-border">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className={`p-2 rounded-full flex-shrink-0 ${tx.type === 'Pago' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                                     {tx.type === 'Pago' ? <Banknote className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                                 </div>
-                                <div>
-                                    <p className="text-sm font-medium text-main">{tx.entityName}</p>
-                                    <p className="text-xs text-muted">{tx.type} • {new Date(tx.date).toLocaleDateString()}</p>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium text-main truncate">{tx.entityName}</p>
+                                    <p className="text-xs text-muted truncate">{tx.type} • {new Date(tx.date).toLocaleDateString()}</p>
                                 </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right flex-shrink-0">
                                 <p className={`text-sm font-bold ${tx.type === 'Pago' ? 'text-emerald-500' : 'text-rose-500'}`}>
                                     {tx.type === 'Pago' ? '+' : '-'} {formatCurrency(tx.amount)}
                                 </p>

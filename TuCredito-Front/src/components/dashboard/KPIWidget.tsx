@@ -39,15 +39,15 @@ export function KPIWidget({ title, value, icon: Icon, trend, trendUp, className,
        {/* Background Glow Effect */}
        <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary-500/10 rounded-full blur-3xl group-hover:bg-primary-500/20 transition-all duration-500"></div>
 
-      <div className="flex items-start justify-between relative z-10">
-        <div>
+      <div className="flex items-start justify-between gap-3 relative z-10">
+        <div className="min-w-0">
           <div className="flex items-center">
-            <p className="text-sm font-medium text-muted">{title}</p>
+            <p className="text-sm font-medium text-muted truncate">{title}</p>
             {description && <InfoTooltip content={description} />}
           </div>
-          <h3 className="mt-3 text-3xl font-bold text-main tracking-tight">{value}</h3>
+          <h3 className="mt-3 text-3xl font-bold text-main tracking-tight truncate">{value}</h3>
         </div>
-        <div className={cn("rounded-xl p-3 shadow-inner", iconColor || "bg-primary-500/10 text-primary-400")}>
+        <div className={cn("rounded-xl p-3 shadow-inner flex-shrink-0", iconColor || "bg-primary-500/10 text-primary-400")}>
           <Icon className="h-6 w-6" />
         </div>
       </div>

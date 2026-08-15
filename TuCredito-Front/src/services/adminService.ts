@@ -9,6 +9,8 @@ export interface AdminTenantRow {
   estadoSuscripcion: EstadoSuscripcion;
   fechaInicio: string;
   createdAt: string;
+  propietarioNombre: string | null;
+  propietarioCorreo: string | null;
   cantidadUsuarios: number;
   cantidadClientes: number;
   cantidadPrestamos: number;
@@ -38,6 +40,8 @@ export async function listTenants(): Promise<AdminTenantRow[]> {
     estadoSuscripcion: row.estado_suscripcion,
     fechaInicio: row.fecha_inicio,
     createdAt: row.created_at,
+    propietarioNombre: row.propietario_nombre,
+    propietarioCorreo: row.propietario_correo,
     cantidadUsuarios: Number(row.cantidad_usuarios),
     cantidadClientes: Number(row.cantidad_clientes),
     cantidadPrestamos: Number(row.cantidad_prestamos),

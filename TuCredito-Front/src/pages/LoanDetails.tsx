@@ -160,17 +160,17 @@ export function LoanDetails() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between flex-wrap gap-y-3">
+        <div className="flex items-center gap-4 min-w-0">
           <button
             onClick={() => navigate('/loans')}
-            className="p-2 hover:bg-surfaceHighlight rounded-full transition-colors text-muted hover:text-main"
+            className="p-2 hover:bg-surfaceHighlight rounded-full transition-colors text-muted hover:text-main flex-shrink-0"
           >
             <ArrowLeft className="h-6 w-6" />
           </button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-main">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold text-main truncate">
                 {loan.cliente ? `Préstamo de ${loan.cliente.nombre} ${loan.cliente.apellido ?? ''}` : 'Préstamo'}
               </h1>
               {isEditingAlias ? (
@@ -217,7 +217,7 @@ export function LoanDetails() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           {(loan.estado === 'activo' && lastPendingInstallment) && (
             <button
               onClick={() => openPayment(

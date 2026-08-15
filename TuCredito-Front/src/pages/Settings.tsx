@@ -424,8 +424,8 @@ export function Settings() {
           </h2>
         </div>
         <div className="p-6 space-y-4">
-           <div className="flex items-center justify-between py-2 gap-4">
-              <div>
+           <div className="flex items-center justify-between py-2 gap-4 flex-wrap">
+              <div className="min-w-0">
                 <p className="font-medium text-main">Notificaciones Push</p>
                 <p className="text-sm text-muted">Recibe un resumen diario de cuotas por cobrar y en mora, aunque no tengas la app abierta.</p>
               </div>
