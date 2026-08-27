@@ -11,6 +11,9 @@ interface ClienteRow {
   correo: string | null;
   activo: boolean;
   garante_id: string | null;
+  usuario_id?: string | null;
+  numero_socio?: string | null;
+  fecha_ingreso?: string;
   garantes?: {
     id: string;
     documento: string | null;
@@ -45,10 +48,13 @@ function mapCliente(row: ClienteRow): Cliente {
     activo: row.activo,
     garanteId: row.garante_id,
     garante: row.garantes ? mapGarante(row.garantes) : null,
+    usuarioId: row.usuario_id,
+    numeroSocio: row.numero_socio,
+    fechaIngreso: row.fecha_ingreso,
   };
 }
 
-const CLIENTE_SELECT = 'id, documento, nombre, apellido, telefono, domicilio, correo, activo, garante_id, garantes(id, documento, nombre, apellido, telefono, domicilio, correo)';
+const CLIENTE_SELECT = 'id, documento, nombre, apellido, telefono, domicilio, correo, activo, garante_id, usuario_id, numero_socio, fecha_ingreso, garantes(id, documento, nombre, apellido, telefono, domicilio, correo)';
 
 export interface BorrowerFilters {
   nombre?: string;

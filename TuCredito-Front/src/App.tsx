@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/layout/Layout';
+import { PortalLayout } from './components/layout/PortalLayout';
 import { ToastProvider } from './context/ToastContext';
 import { BlockedAccountScreen } from './components/auth/BlockedAccountScreen';
 
@@ -24,9 +25,19 @@ const Multas = lazy(() => import('./pages/Multas').then((m) => ({ default: m.Mul
 const Calculator = lazy(() => import('./pages/Calculator').then((m) => ({ default: m.Calculator })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 const Aportaciones = lazy(() => import('./pages/Aportaciones').then((m) => ({ default: m.Aportaciones })));
+const Ahorros = lazy(() => import('./pages/Ahorros').then((m) => ({ default: m.Ahorros })));
 const Excedentes = lazy(() => import('./pages/Excedentes').then((m) => ({ default: m.Excedentes })));
 const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
 const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })));
+
+// Portal de autoservicio del socio (rol 'socio') — layout y páginas propios, nunca
+// comparte chunk con el panel del dueño/cobrador.
+const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard').then((m) => ({ default: m.PortalDashboard })));
+const PortalAportaciones = lazy(() => import('./pages/portal/PortalAportaciones').then((m) => ({ default: m.PortalAportaciones })));
+const PortalAhorros = lazy(() => import('./pages/portal/PortalAhorros').then((m) => ({ default: m.PortalAhorros })));
+const PortalPrestamos = lazy(() => import('./pages/portal/PortalPrestamos').then((m) => ({ default: m.PortalPrestamos })));
+const PortalDividendos = lazy(() => import('./pages/portal/PortalDividendos').then((m) => ({ default: m.PortalDividendos })));
+const PortalMovimientos = lazy(() => import('./pages/portal/PortalMovimientos').then((m) => ({ default: m.PortalMovimientos })));
 
 const queryClient = new QueryClient();
 
@@ -38,16 +49,11 @@ function PageSpinner() {
   );
 }
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, tenantEstado, logout } = useAuth();
-
-  if (isLoading) {
-    return <PageSpinner />;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+/** Pantalla de bloqueo compartida (suspendida/cancelada/prueba vencida) — la usan tanto
+ * el panel del dueño/cobrador como el portal del socio, ya que ambos dependen del
+ * mismo estado de suscripción del tenant. Devuelve null si no hay nada que bloquear. */
+function useTenantBlockScreen(): React.ReactNode | null {
+  const { tenantEstado, logout } = useAuth();
 
   if (tenantEstado && (tenantEstado.estadoSuscripcion === 'suspendida' || tenantEstado.estadoSuscripcion === 'cancelada')) {
     return (
@@ -68,6 +74,50 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       />
     );
   }
+
+  return null;
+}
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const blockScreen = useTenantBlockScreen();
+
+  if (isLoading) {
+    return <PageSpinner />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Un socio nunca entra al panel del dueño/cobrador — todas las rutas bajo "/" están
+  // acá adentro, así que basta este único chequeo para mandarlo siempre a su portal.
+  if (user?.rol === 'socio') {
+    return <Navigate to="/portal" replace />;
+  }
+
+  if (blockScreen) return blockScreen;
+
+  return <>{children}</>;
+}
+
+function PortalRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const blockScreen = useTenantBlockScreen();
+
+  if (isLoading) {
+    return <PageSpinner />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.rol !== 'socio') {
+    return <Navigate to="/" replace />;
+  }
+
+  if (blockScreen) return blockScreen;
 
   return <>{children}</>;
 }
@@ -124,10 +174,24 @@ function AppRoutes() {
           <Route path="payments" element={<Payments />} />
           <Route path="multas" element={<Multas />} />
           <Route path="aportaciones" element={<CooperativaRoute><Aportaciones /></CooperativaRoute>} />
+          <Route path="ahorros" element={<CooperativaRoute><Ahorros /></CooperativaRoute>} />
           <Route path="excedentes" element={<CooperativaRoute><Excedentes /></CooperativaRoute>} />
           <Route path="calculator" element={<Calculator />} />
           <Route path="settings" element={<Settings />} />
           <Route path="admin" element={<AdminRoute><Admin /></AdminRoute>} />
+        </Route>
+
+        <Route path="/portal" element={
+          <PortalRoute>
+            <PortalLayout />
+          </PortalRoute>
+        }>
+          <Route index element={<PortalDashboard />} />
+          <Route path="aportaciones" element={<PortalAportaciones />} />
+          <Route path="ahorros" element={<PortalAhorros />} />
+          <Route path="prestamos" element={<PortalPrestamos />} />
+          <Route path="dividendos" element={<PortalDividendos />} />
+          <Route path="movimientos" element={<PortalMovimientos />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

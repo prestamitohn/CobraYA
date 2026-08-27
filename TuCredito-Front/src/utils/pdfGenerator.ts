@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { PrestamoDTO, ResumenPrestamoDTO, Cuota } from '../types';
 import { formatCurrency, formatDate } from './formatters';
 import type { PagoDetalle } from '../services/paymentService';
-import type { ExcedenteDetalleSocio, ExcedentePeriodo } from '../types/cobraya';
+import type { ExcedenteDetalleSocio, ExcedentePeriodo, FondoExcedenteSnapshot } from '../types/cobraya';
 
 export const exportToPDF = (title: string, headers: string[], data: string[][], filename: string) => {
   const doc = new jsPDF();
@@ -245,6 +245,7 @@ export async function exportCertificadoExcedente(
   periodo: ExcedentePeriodo,
   socio: ExcedenteDetalleSocio,
   negocio: ReciboNegocio,
+  fondos: FondoExcedenteSnapshot[] = [],
 ): Promise<void> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.width;
@@ -314,8 +315,8 @@ export async function exportCertificadoExcedente(
     head: [['Concepto', 'Monto']],
     body: [
       ['Ingresos totales del período (intereses + multas + servicios)', formatCurrency(periodo.ingresosTotales)],
-      [`Reserva legal (${periodo.porcentajeReserva}%, Art. 44 Decreto 65-87)`, `- ${formatCurrency(periodo.montoReserva)}`],
-      ['Excedente distribuible entre socios', formatCurrency(periodo.excedenteDistribuible)],
+      ...fondos.map((f): [string, string] => [`${f.nombre} (${f.porcentaje}%)`, `- ${formatCurrency(f.monto)}`]),
+      ['Excedente neto entre socios', formatCurrency(periodo.excedenteNeto)],
       ['Interés pagado por este socio en el período', formatCurrency(socio.interesPagado)],
       ['Proporción de este socio sobre el total', `${(socio.proporcion * 100).toFixed(2)}%`],
     ],

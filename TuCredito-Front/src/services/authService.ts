@@ -42,6 +42,24 @@ export async function signOut() {
   if (error) throw error;
 }
 
+export interface InvitarUsuarioInput {
+  rol: 'socio' | 'auditor';
+  correo: string;
+  password: string;
+  nombreUsuario: string;
+  clienteId?: string;
+}
+
+/** El dueño invita a un socio (login propio, vinculado a un cliente) o a un auditor (solo lectura) a SU tenant. */
+export async function invitarUsuario(input: InvitarUsuarioInput): Promise<{ userId: string }> {
+  const { data, error } = await supabase.functions.invoke('invitar-usuario', {
+    body: { rol: input.rol, correo: input.correo, password: input.password, nombreUsuario: input.nombreUsuario, clienteId: input.clienteId },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
 export interface UpdateProfileInput {
   nombre?: string;
   nuevaContrasenia?: string;

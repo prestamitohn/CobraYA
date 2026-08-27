@@ -3,7 +3,7 @@
 // se migraron en esta pasada: Settings, Calculator standalone, Documentos, Evaluación
 // BCRA, Dólar) para no romper su compilación.
 
-export type RolUsuario = 'owner' | 'collector';
+export type RolUsuario = 'owner' | 'collector' | 'socio' | 'auditor';
 export type EstadoPrestamo = 'activo' | 'finalizado' | 'eliminado' | 'archivado' | 'refinanciado';
 export type EstadoCuota = 'pendiente' | 'saldada' | 'vencida' | 'reprogramada';
 export type SistemaAmortizacion = 'frances' | 'aleman' | 'americano' | 'directo';
@@ -42,15 +42,112 @@ export interface ExcedenteDetalleSocio {
   montoExcedente: number;
 }
 
+export interface FondoExcedenteSnapshot {
+  nombre: string;
+  porcentaje: number;
+  monto: number;
+}
+
 export interface ExcedentePeriodo {
   id: string;
   fechaDesde: string;
   fechaHasta: string;
   ingresosTotales: number;
-  porcentajeReserva: number;
-  montoReserva: number;
-  excedenteDistribuible: number;
+  excedenteNeto: number;
   createdAt: string;
+}
+
+export interface FondoExcedenteConfig {
+  id: string;
+  nombre: string;
+  porcentaje: number;
+  orden: number;
+  esReservaLegal: boolean;
+  activo: boolean;
+}
+
+export type TipoProductoAhorro = 'a_la_vista' | 'programado' | 'plazo_fijo';
+export type PeriodicidadCapitalizacion = 'diaria' | 'mensual' | 'trimestral' | 'anual';
+export type EstadoCuentaAhorro = 'activa' | 'cerrada' | 'vencida';
+export type TipoMovimiento = 'deposito' | 'retiro' | 'devengo' | 'pago' | 'ajuste';
+export type OrigenMovimiento = 'ahorro' | 'aportacion';
+
+export function getTipoProductoAhorroLabel(tipo: TipoProductoAhorro): string {
+  switch (tipo) {
+    case 'a_la_vista': return 'A la Vista';
+    case 'programado': return 'Programado';
+    case 'plazo_fijo': return 'Plazo Fijo';
+    default: return tipo;
+  }
+}
+
+export function getPeriodicidadLabel(p: PeriodicidadCapitalizacion): string {
+  switch (p) {
+    case 'diaria': return 'Diaria';
+    case 'mensual': return 'Mensual';
+    case 'trimestral': return 'Trimestral';
+    case 'anual': return 'Anual';
+    default: return p;
+  }
+}
+
+export function getTipoMovimientoLabel(tipo: TipoMovimiento): string {
+  switch (tipo) {
+    case 'deposito': return 'Depósito';
+    case 'retiro': return 'Retiro';
+    case 'devengo': return 'Interés Devengado';
+    case 'pago': return 'Pago';
+    case 'ajuste': return 'Ajuste';
+    default: return tipo;
+  }
+}
+
+export interface ProductoAhorro {
+  id: string;
+  nombre: string;
+  tipo: TipoProductoAhorro;
+  tasaPasiva: number;
+  periodicidadCapitalizacion: PeriodicidadCapitalizacion;
+  permiteRetiroLibre: boolean;
+  penalidadRetiroAnticipado?: number | null;
+  plazoDias?: number | null;
+  montoMeta?: number | null;
+  activo: boolean;
+}
+
+export interface CuentaAhorro {
+  id: string;
+  clienteId: string;
+  productoId: string;
+  numeroCuenta: string;
+  saldo: number;
+  fechaApertura: string;
+  fechaVencimiento?: string | null;
+  proximaCapitalizacion?: string | null;
+  estado: EstadoCuentaAhorro;
+}
+
+export interface Movimiento {
+  id: string;
+  clienteId: string;
+  origen: OrigenMovimiento;
+  tipo: TipoMovimiento;
+  cuentaAhorroId?: string | null;
+  monto: number;
+  saldoResultante: number;
+  fecha: string;
+  descripcion?: string | null;
+}
+
+export interface PerfilSocio {
+  clienteId: string;
+  nombre: string;
+  apellido?: string | null;
+  documento: string;
+  numeroSocio?: string | null;
+  fechaIngreso: string;
+  tenantNombre: string;
+  saldoAportaciones: number;
 }
 
 export interface PlatformPaymentAccount {
@@ -115,6 +212,9 @@ export interface Cliente {
   activo: boolean;
   garanteId?: string | null;
   garante?: Garante | null;
+  usuarioId?: string | null;
+  numeroSocio?: string | null;
+  fechaIngreso?: string;
 }
 
 export interface Prestamo {

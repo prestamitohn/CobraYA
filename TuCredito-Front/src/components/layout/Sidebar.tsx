@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert, Gavel, PiggyBank, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert, Gavel, PiggyBank, TrendingUp, Wallet2 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '../../lib/utils';
@@ -16,6 +16,7 @@ function buildSidebarItems(esCooperativa: boolean) {
   if (esCooperativa) {
     items.push(
       { icon: PiggyBank, label: 'Aportaciones', to: '/aportaciones' },
+      { icon: Wallet2, label: 'Ahorros', to: '/ahorros' },
       { icon: TrendingUp, label: 'Excedentes', to: '/excedentes' },
     );
   }

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings as SettingsIcon, Shield, Moon, User, Globe, Check, AlertCircle, Loader2, Eye, EyeOff, X, Building2, Image, Trash2, Upload, Bell, BellOff } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
-import { updateProfile } from '../services/authService';
+import { updateProfile, invitarUsuario } from '../services/authService';
 import { getMyTenant, updateTenant, uploadTenantLogo, removeTenantLogo } from '../services/tenantService';
 import { isPushSupported, getNotificationPermission, hasActivePushSubscription, subscribeToPush, unsubscribeFromPush, sendTestPush } from '../services/pushService';
 import { useAuth } from '../context/AuthContext';
@@ -36,6 +36,20 @@ export function Settings() {
 
     const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
     const [isEditBusinessOpen, setIsEditBusinessOpen] = useState(false);
+    const [auditorNombre, setAuditorNombre] = useState('');
+    const [auditorCorreo, setAuditorCorreo] = useState('');
+    const [auditorPassword, setAuditorPassword] = useState('');
+
+    const invitarAuditorMutation = useMutation({
+        mutationFn: () => invitarUsuario({ rol: 'auditor', correo: auditorCorreo, password: auditorPassword, nombreUsuario: auditorNombre }),
+        onSuccess: () => {
+            addToast('Auditor invitado correctamente', 'success');
+            setAuditorNombre('');
+            setAuditorCorreo('');
+            setAuditorPassword('');
+        },
+        onError: (error: any) => addToast(error.message || 'Error al invitar al auditor', 'error'),
+    });
     const logoInputRef = useRef<HTMLInputElement>(null);
     const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
@@ -415,6 +429,45 @@ export function Settings() {
            </div>
         </div>
       </div>
+
+      {isOwner && (
+        <div className="glass-panel rounded-xl border border-border overflow-hidden">
+          <div className="p-6 border-b border-border">
+            <h2 className="text-lg font-semibold text-main flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary-500" />
+              Auditoría
+            </h2>
+            <p className="text-sm text-muted mt-1">Invita a un auditor con acceso de solo lectura a toda la información del negocio (nunca puede registrar ni modificar nada).</p>
+          </div>
+          <div className="p-6">
+            <form
+              onSubmit={(e) => { e.preventDefault(); invitarAuditorMutation.mutate(); }}
+              className="flex items-end gap-3 flex-wrap"
+            >
+              <div className="flex-1 min-w-[140px] space-y-1">
+                <label className="text-xs text-muted">Nombre</label>
+                <input required value={auditorNombre} onChange={(e) => setAuditorNombre(e.target.value)}
+                  className="w-full bg-surfaceHighlight border border-border rounded-lg px-3 py-2 text-sm text-main focus:border-primary-500 focus:outline-none" />
+              </div>
+              <div className="flex-1 min-w-[180px] space-y-1">
+                <label className="text-xs text-muted">Correo</label>
+                <input required type="email" value={auditorCorreo} onChange={(e) => setAuditorCorreo(e.target.value)}
+                  className="w-full bg-surfaceHighlight border border-border rounded-lg px-3 py-2 text-sm text-main focus:border-primary-500 focus:outline-none" />
+              </div>
+              <div className="flex-1 min-w-[140px] space-y-1">
+                <label className="text-xs text-muted">Contraseña inicial</label>
+                <input required type="text" minLength={8} value={auditorPassword} onChange={(e) => setAuditorPassword(e.target.value)}
+                  className="w-full bg-surfaceHighlight border border-border rounded-lg px-3 py-2 text-sm text-main focus:border-primary-500 focus:outline-none" />
+              </div>
+              <button type="submit" disabled={invitarAuditorMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                {invitarAuditorMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                Invitar
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="glass-panel rounded-xl border border-border overflow-hidden">
         <div className="p-6 border-b border-border">
