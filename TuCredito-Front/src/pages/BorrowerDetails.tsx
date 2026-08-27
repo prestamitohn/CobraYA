@@ -157,23 +157,23 @@ export function BorrowerDetails() {
         </div>
       </div>
 
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border overflow-x-auto">
         <button
           onClick={() => setActiveTab('info')}
-          className={`px-4 py-2 border-b-2 transition-colors ${activeTab === 'info' ? 'border-primary-500 text-primary-500' : 'border-transparent text-muted hover:text-main'}`}
+          className={`px-4 py-2 border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === 'info' ? 'border-primary-500 text-primary-500' : 'border-transparent text-muted hover:text-main'}`}
         >
           Información
         </button>
         <button
           onClick={() => setActiveTab('loans')}
-          className={`px-4 py-2 border-b-2 transition-colors ${activeTab === 'loans' ? 'border-primary-500 text-primary-500' : 'border-transparent text-muted hover:text-main'}`}
+          className={`px-4 py-2 border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === 'loans' ? 'border-primary-500 text-primary-500' : 'border-transparent text-muted hover:text-main'}`}
         >
           Préstamos ({borrowerLoans.length})
         </button>
         {esCooperativa && (
           <button
             onClick={() => setActiveTab('aportaciones')}
-            className={`px-4 py-2 border-b-2 transition-colors ${activeTab === 'aportaciones' ? 'border-primary-500 text-primary-500' : 'border-transparent text-muted hover:text-main'}`}
+            className={`px-4 py-2 border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === 'aportaciones' ? 'border-primary-500 text-primary-500' : 'border-transparent text-muted hover:text-main'}`}
           >
             Aportaciones
           </button>
@@ -181,7 +181,7 @@ export function BorrowerDetails() {
         {esCooperativa && (
           <button
             onClick={() => setActiveTab('ahorros')}
-            className={`px-4 py-2 border-b-2 transition-colors ${activeTab === 'ahorros' ? 'border-primary-500 text-primary-500' : 'border-transparent text-muted hover:text-main'}`}
+            className={`px-4 py-2 border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === 'ahorros' ? 'border-primary-500 text-primary-500' : 'border-transparent text-muted hover:text-main'}`}
           >
             Ahorros
           </button>
@@ -457,7 +457,7 @@ export function BorrowerDetails() {
                   <p className="text-xl font-bold text-main truncate">{formatCurrency(saldoAportaciones)}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-wrap">
                 {borrower.usuarioId ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-sm font-medium">
                     <CheckCircle2 className="h-4 w-4" /> Tiene acceso al portal

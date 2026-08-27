@@ -75,7 +75,11 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           </button>
         </div>
         
-        <nav className="flex-1 space-y-2 p-4">
+        {/* min-h-0 es necesario para que un hijo flex-1 pueda encogerse y scrollear en vez de
+            desbordar el contenedor h-screen — sin esto, con 10 items (cooperativa) el header
+            de arriba y la tarjeta de usuario/Cerrar Sesión de abajo quedaban inalcanzables en
+            pantallas móviles más bajas que el contenido total. */}
+        <nav className="flex-1 min-h-0 overflow-y-auto space-y-2 p-4">
           {sidebarItems.map((item) => (
             <NavLink
               key={item.to}
