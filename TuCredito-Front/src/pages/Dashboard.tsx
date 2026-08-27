@@ -21,6 +21,7 @@ import {
   getWeeklyCollections,
   getWeeklyPortfolioProjection,
 } from '../services/dashboardService';
+import { getMyTenant } from '../services/tenantService';
 import { Link } from 'react-router-dom';
 
 // Paleta categórica validada (dataviz skill) para el gráfico de composición de cartera:
@@ -47,6 +48,7 @@ export function Dashboard() {
   const { user } = useAuth();
   const { theme } = useTheme();
   const { data: kpis, isLoading: isLoadingKpis } = useQuery({ queryKey: ['dashboardKpis'], queryFn: getDashboardKpis });
+  const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant });
 
   const axisColor = theme === 'dark' ? '#9CA3AF' : '#6B7280';
 
@@ -91,7 +93,7 @@ export function Dashboard() {
             </Link>
             <Link to="/borrowers/create" className="flex items-center gap-2 px-4 py-2 bg-surfaceHighlight hover:bg-border text-main rounded-lg transition-colors border border-border font-medium">
                 <UserPlus className="h-4 w-4" />
-                <span>Nuevo Cliente</span>
+                <span>Nuevo {tenant?.tipoTenant === 'cooperativa' ? 'Socio' : 'Cliente'}</span>
             </Link>
         </div>
       </div>

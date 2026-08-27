@@ -6,9 +6,10 @@ import { getLoans } from '../services/loanService';
 import { getClasificacionesClientes, establecerClasificacionManual, quitarClasificacionManual } from '../services/clasificacionService';
 import { getAportacionesByCliente, getCuentasAhorroByCliente } from '../services/cooperativaService';
 import { getMyTenant } from '../services/tenantService';
-import { ArrowLeft, User, Users, Edit, Save, X, ShieldAlert, TrendingUp, UserCog, RotateCcw, PiggyBank, Plus, KeyRound, CheckCircle2 } from 'lucide-react';
-import { getEstadoPrestamoLabel, getClasificacionLabel, getClasificacionColorClass, ClasificacionCliente, getTipoAportacionLabel } from '../types/cobraya';
+import { ArrowLeft, User, Users, Edit, Save, X, ShieldAlert, TrendingUp, UserCog, RotateCcw, PiggyBank, Plus, KeyRound, CheckCircle2, Receipt, Loader2 } from 'lucide-react';
+import { getEstadoPrestamoLabel, getClasificacionLabel, getClasificacionColorClass, ClasificacionCliente, getTipoAportacionLabel, Aportacion } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { WhatsappButton } from '../components/ui/WhatsappButton';
 import { AportacionModal } from '../components/cooperativa/AportacionModal';
 import { InvitarSocioModal } from '../components/cooperativa/InvitarSocioModal';
 import { AbrirCuentaAhorroModal } from '../components/cooperativa/AbrirCuentaAhorroModal';
@@ -75,6 +76,36 @@ export function BorrowerDetails() {
     (acc, a) => acc + (a.tipo === 'retiro' ? -a.monto : a.monto),
     0,
   );
+
+  const [generandoReciboId, setGenerandoReciboId] = useState<string | null>(null);
+
+  const handleDescargarReciboAportacion = async (a: Aportacion) => {
+    if (!borrower) return;
+    setGenerandoReciboId(a.id);
+    try {
+      const { exportReciboAportacion } = await import('../utils/pdfGenerator');
+      await exportReciboAportacion(
+        {
+          id: a.id,
+          tipoLabel: getTipoAportacionLabel(a.tipo),
+          monto: a.monto,
+          fecha: a.fecha,
+          observaciones: a.observaciones,
+          // Saldo actual del socio — para aportaciones antiguas no refleja el saldo
+          // justo después de ese movimiento en particular, solo el saldo de hoy.
+          saldoNuevo: saldoAportaciones,
+          clienteNombre: `${borrower.nombre} ${borrower.apellido ?? ''}`.trim(),
+          clienteDocumento: borrower.documento,
+        },
+        { nombre: tenant?.nombre || 'CobraYA', logoUrl: tenant?.logoUrl, rtn: tenant?.rtn },
+      );
+    } finally {
+      setGenerandoReciboId(null);
+    }
+  };
+
+  const mensajeWhatsappAportacion = (a: Aportacion) =>
+    `Hola ${borrower?.nombre}, registramos tu aportación ${getTipoAportacionLabel(a.tipo).toLowerCase()} de ${formatCurrency(a.monto)} el ${formatDate(a.fecha)}. Tu saldo de aportaciones es ${formatCurrency(saldoAportaciones)}. — ${tenant?.nombre || 'CobraYA'}`;
 
   const borrowerLoans = loans?.filter((l) => l.clienteId === borrower?.id) || [];
   const clasificacion = clasificaciones?.find((c) => c.clienteId === borrower?.id);
@@ -490,6 +521,7 @@ export function BorrowerDetails() {
                       <th className="px-6 py-3 font-medium">Tipo</th>
                       <th className="px-6 py-3 font-medium">Observaciones</th>
                       <th className="px-6 py-3 font-medium text-right">Monto</th>
+                      <th className="px-6 py-3 font-medium text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -505,11 +537,25 @@ export function BorrowerDetails() {
                         <td className={`px-6 py-4 text-right font-medium ${a.tipo === 'retiro' ? 'text-red-400' : 'text-main'}`}>
                           {a.tipo === 'retiro' ? '- ' : ''}{formatCurrency(a.monto)}
                         </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-end gap-2 flex-wrap">
+                            <button
+                              onClick={() => handleDescargarReciboAportacion(a)}
+                              disabled={generandoReciboId === a.id}
+                              title="Descargar recibo"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                            >
+                              {generandoReciboId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />}
+                              Recibo
+                            </button>
+                            <WhatsappButton telefono={borrower.telefono} mensaje={mensajeWhatsappAportacion(a)} />
+                          </div>
+                        </td>
                       </tr>
                     ))}
                     {(aportaciones?.length ?? 0) === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-muted">
+                        <td colSpan={5} className="px-6 py-8 text-center text-muted">
                           Este socio no tiene aportaciones registradas
                         </td>
                       </tr>
@@ -581,6 +627,7 @@ export function BorrowerDetails() {
             isOpen={!!cuentaSeleccionada}
             onClose={() => setCuentaSeleccionada(null)}
             cuenta={cuentaSeleccionada}
+            cliente={borrower}
           />
         </>
       )}

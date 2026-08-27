@@ -350,3 +350,181 @@ export async function exportCertificadoExcedente(
 
   doc.save(`Certificado_Excedente_${socio.nombre}_${periodo.fechaHasta}.pdf`);
 }
+
+/** Header compartido A5 de los recibos (aportación/ahorro) — mismo look que exportReciboPago. */
+async function dibujarHeaderRecibo(doc: jsPDF, negocio: ReciboNegocio, subtitulo: string): Promise<void> {
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const verde: [number, number, number] = [5, 150, 105];
+
+  doc.setDrawColor(...verde);
+  doc.setLineWidth(1);
+  doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+
+  doc.setFillColor(...verde);
+  doc.rect(6, 6, pageWidth - 12, 25, 'F');
+
+  const logo = negocio.logoUrl ? await imageUrlToDataUrl(negocio.logoUrl) : null;
+  const textoInicioX = logo ? 32 : pageWidth / 2;
+  const align = logo ? 'left' : 'center';
+  if (logo) {
+    try {
+      doc.addImage(logo.dataUrl, logo.format, 10, 8, 18, 18);
+    } catch {
+      // si falla el embed, se sigue con el header solo de texto
+    }
+  }
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.text(negocio.nombre || 'CobraYA', textoInicioX, 16, { align });
+  doc.setFontSize(9);
+  doc.text(subtitulo, textoInicioX, 23, { align });
+  if (negocio.rtn) {
+    doc.setFontSize(7);
+    doc.text(`RTN: ${negocio.rtn}`, textoInicioX, 28, { align });
+  }
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(10);
+}
+
+export interface ReciboAportacionInput {
+  id: string;
+  tipoLabel: string;
+  monto: number;
+  fecha: string;
+  observaciones?: string | null;
+  saldoNuevo: number;
+  clienteNombre: string;
+  clienteDocumento: string;
+}
+
+/** Comprobante de una aportación de capital social — mismo patrón visual que el recibo de pago. */
+export async function exportReciboAportacion(input: ReciboAportacionInput, negocio: ReciboNegocio): Promise<void> {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const verde: [number, number, number] = [5, 150, 105];
+
+  await dibujarHeaderRecibo(doc, negocio, 'COMPROBANTE DE APORTACIÓN');
+
+  doc.text('Nro. Comprobante:', 15, 45);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`#${input.id.slice(0, 8).toUpperCase()}`, 55, 45);
+  doc.setFont('helvetica', 'normal');
+
+  doc.text('Fecha:', 15, 52);
+  doc.text(formatDate(input.fecha), 55, 52);
+
+  doc.setDrawColor(200);
+  doc.line(15, 60, pageWidth - 15, 60);
+
+  doc.text('Socio:', 15, 70);
+  doc.setFont('helvetica', 'bold');
+  doc.text(input.clienteNombre, 55, 70);
+  doc.setFont('helvetica', 'normal');
+
+  doc.text('Identidad:', 15, 77);
+  doc.text(input.clienteDocumento, 55, 77);
+
+  doc.line(15, 85, pageWidth - 15, 85);
+
+  doc.text('Tipo:', 15, 95);
+  doc.text(input.tipoLabel, 55, 95);
+
+  if (input.observaciones) {
+    doc.text('Observaciones:', 15, 102);
+    doc.text(input.observaciones, 55, 102, { maxWidth: pageWidth - 70 });
+  }
+
+  doc.setFillColor(245, 247, 250);
+  doc.rect(15, 122, pageWidth - 30, 25, 'F');
+
+  doc.setFontSize(12);
+  doc.text('Monto Aportado', pageWidth / 2, 130, { align: 'center' });
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...verde);
+  doc.text(formatCurrency(input.monto), pageWidth / 2, 141, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100);
+  doc.setFontSize(8);
+  doc.text(`Nuevo saldo de aportaciones: ${formatCurrency(input.saldoNuevo)}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
+  doc.text('Este documento sirve como constancia — capital social nominativo e intransferible.', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+  doc.save(`Recibo_Aportacion_${input.id.slice(0, 8)}.pdf`);
+}
+
+export interface ReciboMovimientoInput {
+  id: string;
+  tipoLabel: string;
+  monto: number;
+  fecha: string;
+  descripcion?: string | null;
+  saldoResultante: number;
+  numeroCuenta: string;
+  clienteNombre: string;
+  clienteDocumento: string;
+}
+
+/** Comprobante de un movimiento de ahorro (depósito/retiro/interés devengado). */
+export async function exportReciboMovimientoAhorro(input: ReciboMovimientoInput, negocio: ReciboNegocio): Promise<void> {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const verde: [number, number, number] = [5, 150, 105];
+
+  await dibujarHeaderRecibo(doc, negocio, 'COMPROBANTE DE MOVIMIENTO DE AHORRO');
+
+  doc.text('Nro. Comprobante:', 15, 45);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`#${input.id.slice(0, 8).toUpperCase()}`, 55, 45);
+  doc.setFont('helvetica', 'normal');
+
+  doc.text('Fecha:', 15, 52);
+  doc.text(formatDate(input.fecha), 55, 52);
+
+  doc.setDrawColor(200);
+  doc.line(15, 60, pageWidth - 15, 60);
+
+  doc.text('Socio:', 15, 70);
+  doc.setFont('helvetica', 'bold');
+  doc.text(input.clienteNombre, 55, 70);
+  doc.setFont('helvetica', 'normal');
+
+  doc.text('Identidad:', 15, 77);
+  doc.text(input.clienteDocumento, 55, 77);
+
+  doc.text('Cuenta:', 15, 84);
+  doc.text(input.numeroCuenta, 55, 84);
+
+  doc.line(15, 92, pageWidth - 15, 92);
+
+  doc.text('Tipo de movimiento:', 15, 102);
+  doc.text(input.tipoLabel, 55, 102);
+
+  if (input.descripcion) {
+    doc.text('Descripción:', 15, 109);
+    doc.text(input.descripcion, 55, 109, { maxWidth: pageWidth - 70 });
+  }
+
+  doc.setFillColor(245, 247, 250);
+  doc.rect(15, 122, pageWidth - 30, 25, 'F');
+
+  doc.setFontSize(12);
+  doc.text(input.monto < 0 ? 'Monto Retirado' : 'Monto Aplicado', pageWidth / 2, 130, { align: 'center' });
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...verde);
+  doc.text(formatCurrency(Math.abs(input.monto)), pageWidth / 2, 141, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100);
+  doc.setFontSize(8);
+  doc.text(`Nuevo saldo de la cuenta: ${formatCurrency(input.saldoResultante)}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
+  doc.text('Este documento sirve como constancia de movimiento válida.', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+  doc.save(`Recibo_Ahorro_${input.id.slice(0, 8)}.pdf`);
+}

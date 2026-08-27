@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getBorrowerByDocumento, updateBorrower } from '../services/borrowerService';
+import { getMyTenant } from '../services/tenantService';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { BorrowerForm, BorrowerFormData } from '../components/borrowers/BorrowerForm';
 import { useToast } from '../context/ToastContext';
@@ -12,6 +13,10 @@ export function EditBorrower() {
   const { addToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [updateError, setUpdateError] = useState('');
+
+  const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant });
+  const esCooperativa = tenant?.tipoTenant === 'cooperativa';
+  const etiqueta = esCooperativa ? 'Socio' : 'Cliente';
 
   const { data: borrower, isLoading: isLoadingData, error: loadError } = useQuery({
     queryKey: ['borrower', documento],
@@ -31,11 +36,12 @@ export function EditBorrower() {
         telefono: data.telefono || undefined,
         domicilio: data.domicilio || undefined,
         correo: data.correo || undefined,
+        numeroSocio: data.numeroSocio || undefined,
       });
-      addToast('Cliente actualizado correctamente', 'success');
+      addToast(`${etiqueta} actualizado correctamente`, 'success');
       navigate('/borrowers');
     } catch (err: any) {
-      const msg = err.message || 'Error al actualizar el cliente';
+      const msg = err.message || `Error al actualizar el ${etiqueta.toLowerCase()}`;
       setUpdateError(msg);
       addToast(msg, 'error');
     } finally {
@@ -55,7 +61,7 @@ export function EditBorrower() {
     return (
       <div className="flex flex-col items-center justify-center h-full text-red-400">
         <AlertTriangle className="h-12 w-12 mb-4" />
-        <p>Error al cargar los datos del cliente</p>
+        <p>Error al cargar los datos del {etiqueta.toLowerCase()}</p>
         <button
           onClick={() => navigate('/borrowers')}
           className="mt-4 text-primary-400 hover:underline"
@@ -76,8 +82,8 @@ export function EditBorrower() {
           <ArrowLeft className="h-6 w-6" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-main">Editar Cliente</h1>
-          <p className="text-muted">Actualizar datos del prestatario</p>
+          <h1 className="text-2xl font-bold text-main">Editar {etiqueta}</h1>
+          <p className="text-muted">{esCooperativa ? 'Actualizar datos del socio' : 'Actualizar datos del prestatario'}</p>
         </div>
       </div>
 
@@ -94,7 +100,8 @@ export function EditBorrower() {
             initialData={borrower}
             onSubmit={onSubmit}
             isLoading={isLoading}
-            submitLabel="Actualizar Cliente"
+            submitLabel={`Actualizar ${etiqueta}`}
+            esCooperativa={esCooperativa}
           />
         )}
       </div>

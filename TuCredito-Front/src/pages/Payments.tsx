@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, AlertCircle, CheckCircle2, Plus, Receipt, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { WhatsappButton } from '../components/ui/WhatsappButton';
 
 import { PaymentModal, PagableItem } from '../components/payments/PaymentModal';
 import { NewPaymentModal } from '../components/payments/NewPaymentModal';
@@ -52,6 +53,9 @@ export function Payments() {
       setGenerandoReciboId(null);
     }
   };
+
+  const mensajeWhatsapp = (payment: PagoDetalle) =>
+    `Hola ${payment.clienteNombre}, confirmamos tu pago de ${formatCurrency(payment.monto)} por ${payment.concepto.toLowerCase()} el ${formatDate(payment.fechaPago)}. ¡Gracias! — ${tenant?.nombre || 'CobraYA'}`;
 
   const filteredPayments = useMemo(() => {
     if (!payments) return payments;
@@ -120,7 +124,7 @@ export function Payments() {
                 <th className="px-6 py-3 font-medium">Fecha</th>
                 <th className="px-6 py-3 font-medium">Medio de Pago</th>
                 <th className="px-6 py-3 font-medium">Estado</th>
-                <th className="px-6 py-3 font-medium text-right">Recibo</th>
+                <th className="px-6 py-3 font-medium text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -145,16 +149,19 @@ export function Payments() {
                         {payment.estado}
                      </StatusBadge>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => handleDescargarRecibo(payment)}
-                      disabled={generandoReciboId === payment.id}
-                      title="Descargar recibo"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                    >
-                      {generandoReciboId === payment.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />}
-                      Recibo
-                    </button>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-end gap-2 flex-wrap">
+                      <button
+                        onClick={() => handleDescargarRecibo(payment)}
+                        disabled={generandoReciboId === payment.id}
+                        title="Descargar recibo"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                      >
+                        {generandoReciboId === payment.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />}
+                        Recibo
+                      </button>
+                      <WhatsappButton telefono={payment.clienteTelefono} mensaje={mensajeWhatsapp(payment)} />
+                    </div>
                   </td>
                 </tr>
               ))}

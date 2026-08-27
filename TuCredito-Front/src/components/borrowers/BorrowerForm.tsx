@@ -12,6 +12,7 @@ const borrowerSchema = z.object({
   correo: z.string().email("El formato del email no es válido").or(z.literal('')),
   telefono: z.string().min(6, "El teléfono debe tener al menos 6 números").or(z.literal('')),
   domicilio: z.string().min(5, "La dirección es demasiado corta").or(z.literal('')),
+  numeroSocio: z.string().optional(),
   garanteNombre: z.string().optional(),
   garanteApellido: z.string().optional(),
   garanteDni: z.string().regex(/^\d*$/, "Solo se permiten números").optional().or(z.literal('')),
@@ -27,9 +28,11 @@ interface BorrowerFormProps {
   onSubmit: (data: BorrowerFormData) => void;
   isLoading: boolean;
   submitLabel: string;
+  /** El campo Número de Socio solo tiene sentido en una cooperativa — un prestamista no maneja membresías. */
+  esCooperativa?: boolean;
 }
 
-export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel }: BorrowerFormProps) {
+export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel, esCooperativa }: BorrowerFormProps) {
   const { register, handleSubmit, formState: { errors }, reset } = useForm<BorrowerFormData>({
     resolver: zodResolver(borrowerSchema),
     defaultValues: {
@@ -39,6 +42,7 @@ export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel }: 
       correo: '',
       telefono: '',
       domicilio: '',
+      numeroSocio: '',
       garanteNombre: '',
       garanteApellido: '',
       garanteDni: '',
@@ -57,6 +61,7 @@ export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel }: 
         correo: initialData.correo || '',
         telefono: initialData.telefono || '',
         domicilio: initialData.domicilio || '',
+        numeroSocio: initialData.numeroSocio || '',
         garanteNombre: initialData.garante?.nombre || '',
         garanteApellido: initialData.garante?.apellido || '',
         garanteDni: initialData.garante?.documento || '',
@@ -137,6 +142,18 @@ export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel }: 
             />
              {errors.domicilio && <p className="text-xs text-red-400 mt-1">{errors.domicilio.message}</p>}
           </div>
+
+          {esCooperativa && (
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Número de Socio</label>
+              <input
+                {...register('numeroSocio')}
+                className="w-full bg-surface/50 border border-border rounded-lg px-4 py-2.5 text-main placeholder-muted focus:outline-none focus:border-primary-500 transition-colors"
+                placeholder="0001"
+              />
+              <p className="text-xs text-muted mt-1">Opcional — el correlativo con el que la cooperativa identifica a este socio.</p>
+            </div>
+          )}
         </div>
       </div>
 

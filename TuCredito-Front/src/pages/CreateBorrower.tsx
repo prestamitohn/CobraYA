@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { createBorrower } from '../services/borrowerService';
+import { getMyTenant } from '../services/tenantService';
 import { ArrowLeft } from 'lucide-react';
 import { BorrowerForm, BorrowerFormData } from '../components/borrowers/BorrowerForm';
 import { useToast } from '../context/ToastContext';
@@ -9,6 +11,10 @@ export function CreateBorrower() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+
+  const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant });
+  const esCooperativa = tenant?.tipoTenant === 'cooperativa';
+  const etiqueta = esCooperativa ? 'Socio' : 'Cliente';
 
   const onSubmit = async (data: BorrowerFormData) => {
     setIsLoading(true);
@@ -20,6 +26,7 @@ export function CreateBorrower() {
         telefono: data.telefono || undefined,
         domicilio: data.domicilio || undefined,
         correo: data.correo || undefined,
+        numeroSocio: data.numeroSocio || undefined,
         garante: data.garanteNombre
           ? {
               nombre: data.garanteNombre,
@@ -31,10 +38,10 @@ export function CreateBorrower() {
             }
           : undefined,
       });
-      addToast('Cliente registrado correctamente', 'success');
+      addToast(`${etiqueta} registrado correctamente`, 'success');
       navigate('/borrowers');
     } catch (err: any) {
-      addToast(err.message || 'Error al registrar el cliente', 'error');
+      addToast(err.message || `Error al registrar el ${etiqueta.toLowerCase()}`, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -50,8 +57,8 @@ export function CreateBorrower() {
           <ArrowLeft className="h-6 w-6" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-main">Nuevo Cliente</h1>
-          <p className="text-muted">Registrar un nuevo prestatario en el sistema</p>
+          <h1 className="text-2xl font-bold text-main">Nuevo {etiqueta}</h1>
+          <p className="text-muted">{esCooperativa ? 'Registrar un nuevo socio en la cooperativa' : 'Registrar un nuevo prestatario en el sistema'}</p>
         </div>
       </div>
 
@@ -59,7 +66,8 @@ export function CreateBorrower() {
         <BorrowerForm
           onSubmit={onSubmit}
           isLoading={isLoading}
-          submitLabel="Guardar Cliente"
+          submitLabel={`Guardar ${etiqueta}`}
+          esCooperativa={esCooperativa}
         />
       </div>
     </div>

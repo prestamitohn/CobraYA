@@ -11,6 +11,7 @@ export interface PagoDetalle {
   clienteId: string | null;
   clienteNombre: string;
   clienteDocumento: string | null;
+  clienteTelefono: string | null;
   fechaPago: string;
   medioPago: string;
   monto: number;
@@ -24,6 +25,7 @@ interface ClienteEmbed {
   nombre: string;
   apellido: string | null;
   documento: string;
+  telefono: string | null;
 }
 
 interface PagoRow {
@@ -53,9 +55,9 @@ interface PagoRow {
 
 const PAGO_SELECT = `
   id, cuota_id, gasto_administrativo_id, multa_id, fecha_pago, monto, descuento, recargo, estado,
-  cuota:cuotas(nro_cuota, prestamo:prestamos(cantidad_cuotas, cliente:clientes(id, nombre, apellido, documento))),
-  gasto:gastos_administrativos(numero, prestamo:prestamos(cliente:clientes(id, nombre, apellido, documento))),
-  multa:multas(motivo, prestamo:prestamos(cliente:clientes(id, nombre, apellido, documento))),
+  cuota:cuotas(nro_cuota, prestamo:prestamos(cantidad_cuotas, cliente:clientes(id, nombre, apellido, documento, telefono))),
+  gasto:gastos_administrativos(numero, prestamo:prestamos(cliente:clientes(id, nombre, apellido, documento, telefono))),
+  multa:multas(motivo, prestamo:prestamos(cliente:clientes(id, nombre, apellido, documento, telefono))),
   medio_pago:medios_pago(nombre)
 `;
 
@@ -86,6 +88,7 @@ function mapPago(row: PagoRow): PagoDetalle {
     clienteId: cliente?.id ?? null,
     clienteNombre: cliente ? `${cliente.nombre} ${cliente.apellido ?? ''}`.trim() : 'N/A',
     clienteDocumento: cliente?.documento ?? null,
+    clienteTelefono: cliente?.telefono ?? null,
     fechaPago: row.fecha_pago,
     medioPago: row.medio_pago?.nombre ?? '-',
     monto: row.monto,

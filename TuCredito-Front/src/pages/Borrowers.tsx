@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getBorrowers, toggleBorrowerStatus, BorrowerFilters } from '../services/borrowerService';
+import { getMyTenant } from '../services/tenantService';
 import { getDelinquencyDetails } from '../services/dashboardService';
 import { getClasificacionesClientes } from '../services/clasificacionService';
 import { getClasificacionLabel, getClasificacionColorClass, Cliente, ClasificacionCliente } from '../types/cobraya';
@@ -21,16 +22,21 @@ export function Borrowers() {
   const [clasificacionFilter, setClasificacionFilter] = useState<ClasificacionCliente | ''>('');
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id?: string; currentStatus?: boolean }>({ isOpen: false });
 
+  const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant });
+  const esCooperativa = tenant?.tipoTenant === 'cooperativa';
+  const etiqueta = esCooperativa ? 'Socio' : 'Cliente';
+  const etiquetaMin = esCooperativa ? 'socio' : 'cliente';
+
   const toggleStatusMutation = useMutation({
     mutationFn: ({ id, activo }: { id: string; activo: boolean }) =>
       toggleBorrowerStatus(id, activo),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['borrowers'] });
-      addToast(`Cliente ${variables.activo ? 'activado' : 'desactivado'} correctamente`, 'success');
+      addToast(`${etiqueta} ${variables.activo ? 'activado' : 'desactivado'} correctamente`, 'success');
       setConfirmModal({ isOpen: false });
     },
     onError: () => {
-      addToast('Error al cambiar el estado del cliente', 'error');
+      addToast(`Error al cambiar el estado del ${etiquetaMin}`, 'error');
     }
   });
 
@@ -106,7 +112,7 @@ export function Borrowers() {
     return (
       <div className="flex flex-col items-center justify-center h-full text-red-400">
         <AlertCircle className="h-12 w-12 mb-4" />
-        <p>Error al cargar los clientes</p>
+        <p>Error al cargar los {esCooperativa ? 'socios' : 'clientes'}</p>
       </div>
     );
   }
@@ -115,17 +121,17 @@ export function Borrowers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-main">Clientes</h1>
-          <p className="text-muted">Directorio de prestatarios registrados</p>
+          <h1 className="text-2xl font-bold text-main">{esCooperativa ? 'Socios' : 'Clientes'}</h1>
+          <p className="text-muted">{esCooperativa ? 'Directorio de socios registrados' : 'Directorio de prestatarios registrados'}</p>
         </div>
         <div className="flex gap-2">
-            <ExportMenu data={filteredBorrowers} columns={borrowerExportColumns} filenameBase="Clientes" title="Reporte de Clientes" />
+            <ExportMenu data={filteredBorrowers} columns={borrowerExportColumns} filenameBase={esCooperativa ? 'Socios' : 'Clientes'} title={`Reporte de ${esCooperativa ? 'Socios' : 'Clientes'}`} />
             <button
               onClick={() => navigate('/borrowers/create')}
               className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"
             >
               <Plus className="h-5 w-5" />
-              Nuevo Cliente
+              Nuevo {etiqueta}
             </button>
         </div>
       </div>
@@ -134,8 +140,8 @@ export function Borrowers() {
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal({ isOpen: false })}
         onConfirm={onConfirmToggle}
-        title={confirmModal.currentStatus ? "Desactivar Cliente" : "Activar Cliente"}
-        message={`¿Está seguro que desea ${confirmModal.currentStatus ? 'desactivar' : 'activar'} a este cliente?`}
+        title={confirmModal.currentStatus ? `Desactivar ${etiqueta}` : `Activar ${etiqueta}`}
+        message={`¿Está seguro que desea ${confirmModal.currentStatus ? 'desactivar' : 'activar'} a este ${etiquetaMin}?`}
         confirmText={confirmModal.currentStatus ? "Desactivar" : "Activar"}
         cancelText="Cancelar"
         variant={confirmModal.currentStatus ? "danger" : "success"}
@@ -149,7 +155,7 @@ export function Borrowers() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
               <input
                 type="text"
-                placeholder="Buscar cliente por nombre, identidad o teléfono (Presione Enter)"
+                placeholder={`Buscar ${etiquetaMin} por nombre, identidad o teléfono (Presione Enter)`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => {
@@ -310,7 +316,7 @@ export function Borrowers() {
                     <button
                         onClick={() => navigate(`/borrowers/edit/${borrower.documento}`)}
                         className="text-sm font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                        title="Editar Cliente"
+                        title={`Editar ${etiqueta}`}
                     >
                         <Pencil className="h-3 w-3" /> Editar
                     </button>
@@ -318,7 +324,7 @@ export function Borrowers() {
 
                  <button
                     onClick={() => handleToggleStatus(borrower.id, borrower.activo)}
-                    title={borrower.activo ? "Desactivar Cliente" : "Activar Cliente"}
+                    title={borrower.activo ? `Desactivar ${etiqueta}` : `Activar ${etiqueta}`}
                     className={`p-2 rounded-full transition-colors ${borrower.activo ? 'text-green-500 hover:bg-green-500/10' : 'text-red-500 hover:bg-red-500/10'}`}
                  >
                     <Power className="h-4 w-4" />
@@ -330,7 +336,7 @@ export function Borrowers() {
           {filteredBorrowers?.length === 0 && (
             <div className="col-span-full py-12 text-center text-muted">
               <User className="h-12 w-12 mx-auto mb-4 opacity-20" />
-              <p>No se encontraron clientes con los criterios de búsqueda</p>
+              <p>No se encontraron {esCooperativa ? 'socios' : 'clientes'} con los criterios de búsqueda</p>
             </div>
           )}
         </div>

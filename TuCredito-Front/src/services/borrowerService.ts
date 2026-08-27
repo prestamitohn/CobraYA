@@ -113,6 +113,7 @@ export interface CreateBorrowerInput {
   telefono?: string;
   domicilio?: string;
   correo?: string;
+  numeroSocio?: string;
   garante?: GaranteInput;
 }
 
@@ -145,6 +146,7 @@ export async function createBorrower(input: CreateBorrowerInput): Promise<Client
       telefono: input.telefono || null,
       domicilio: input.domicilio || null,
       correo: input.correo || null,
+      numero_socio: input.numeroSocio || null,
       garante_id: garanteId,
     })
     .select(CLIENTE_SELECT)
@@ -162,6 +164,7 @@ export async function updateBorrower(id: string, input: Partial<CreateBorrowerIn
       telefono: input.telefono || null,
       domicilio: input.domicilio || null,
       correo: input.correo || null,
+      numero_socio: input.numeroSocio || null,
     })
     .eq('id', id);
   if (error) throw error;

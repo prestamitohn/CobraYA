@@ -23,7 +23,7 @@ export function Ahorros() {
   const { data: socios } = useQuery({ queryKey: ['borrowers'], queryFn: () => getBorrowers() });
 
   const sociosPorId = useMemo(() => {
-    const map: Record<string, { nombre: string; apellido?: string | null; documento: string }> = {};
+    const map: Record<string, { nombre: string; apellido?: string | null; documento: string; telefono?: string | null }> = {};
     for (const s of socios ?? []) map[s.id] = s;
     return map;
   }, [socios]);
@@ -177,7 +177,12 @@ export function Ahorros() {
       </div>
 
       <ProductoAhorroModal isOpen={productoModalOpen} onClose={() => setProductoModalOpen(false)} producto={productoEditando} />
-      <MovimientoAhorroModal isOpen={!!cuentaSeleccionada} onClose={() => setCuentaSeleccionada(null)} cuenta={cuentaSeleccionada} />
+      <MovimientoAhorroModal
+        isOpen={!!cuentaSeleccionada}
+        onClose={() => setCuentaSeleccionada(null)}
+        cuenta={cuentaSeleccionada}
+        cliente={cuentaSeleccionada ? sociosPorId[cuentaSeleccionada.clienteId] : null}
+      />
     </div>
   );
 }

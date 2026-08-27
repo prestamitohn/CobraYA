@@ -1,30 +1,44 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMovimientosByCuenta, registrarMovimientoAhorro } from '../../services/cooperativaService';
+import { getMyTenant } from '../../services/tenantService';
 import { useToast } from '../../context/ToastContext';
-import { X, Save, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { X, Save, ArrowDownCircle, ArrowUpCircle, Receipt, Loader2 } from 'lucide-react';
 import { CurrencyInput } from '../ui/CurrencyInput';
-import { CuentaAhorro, getTipoMovimientoLabel } from '../../types/cobraya';
+import { WhatsappButton } from '../ui/WhatsappButton';
+import { CuentaAhorro, Movimiento, getTipoMovimientoLabel } from '../../types/cobraya';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+
+interface ClienteBasico {
+  nombre: string;
+  apellido?: string | null;
+  documento: string;
+  telefono?: string | null;
+}
 
 interface MovimientoAhorroModalProps {
   isOpen: boolean;
   onClose: () => void;
   cuenta: CuentaAhorro | null;
+  /** Necesario para el recibo/WhatsApp por movimiento — si no se pasa, esas acciones quedan ocultas. */
+  cliente?: ClienteBasico | null;
 }
 
-export function MovimientoAhorroModal({ isOpen, onClose, cuenta }: MovimientoAhorroModalProps) {
+export function MovimientoAhorroModal({ isOpen, onClose, cuenta, cliente }: MovimientoAhorroModalProps) {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const [tipo, setTipo] = useState<'deposito' | 'retiro'>('deposito');
   const [monto, setMonto] = useState(0);
   const [descripcion, setDescripcion] = useState('');
+  const [generandoReciboId, setGenerandoReciboId] = useState<string | null>(null);
 
   const { data: movimientos } = useQuery({
     queryKey: ['movimientosCuenta', cuenta?.id],
     queryFn: () => getMovimientosByCuenta(cuenta!.id),
     enabled: isOpen && !!cuenta,
   });
+
+  const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant, enabled: isOpen });
 
   useEffect(() => {
     if (isOpen) {
@@ -46,6 +60,33 @@ export function MovimientoAhorroModal({ isOpen, onClose, cuenta }: MovimientoAho
     },
     onError: (error: any) => addToast(error.message || 'Error al registrar el movimiento', 'error'),
   });
+
+  const handleDescargarRecibo = async (m: Movimiento) => {
+    if (!cliente || !cuenta) return;
+    setGenerandoReciboId(m.id);
+    try {
+      const { exportReciboMovimientoAhorro } = await import('../../utils/pdfGenerator');
+      await exportReciboMovimientoAhorro(
+        {
+          id: m.id,
+          tipoLabel: getTipoMovimientoLabel(m.tipo),
+          monto: m.monto,
+          fecha: m.fecha,
+          descripcion: m.descripcion,
+          saldoResultante: m.saldoResultante,
+          numeroCuenta: cuenta.numeroCuenta,
+          clienteNombre: `${cliente.nombre} ${cliente.apellido ?? ''}`.trim(),
+          clienteDocumento: cliente.documento,
+        },
+        { nombre: tenant?.nombre || 'CobraYA', logoUrl: tenant?.logoUrl, rtn: tenant?.rtn },
+      );
+    } finally {
+      setGenerandoReciboId(null);
+    }
+  };
+
+  const mensajeWhatsapp = (m: Movimiento) =>
+    `Hola ${cliente?.nombre}, registramos un ${getTipoMovimientoLabel(m.tipo).toLowerCase()} de ${formatCurrency(Math.abs(m.monto))} en tu cuenta de ahorro ${cuenta?.numeroCuenta}. Saldo actual: ${formatCurrency(m.saldoResultante)}. — ${tenant?.nombre || 'CobraYA'}`;
 
   if (!isOpen || !cuenta) return null;
 
@@ -103,17 +144,33 @@ export function MovimientoAhorroModal({ isOpen, onClose, cuenta }: MovimientoAho
 
         <div className="p-4">
           <h3 className="text-sm font-semibold text-muted mb-2">Movimientos</h3>
-          <div className="space-y-1 max-h-64 overflow-y-auto">
+          <div className="space-y-2 max-h-80 overflow-y-auto">
             {movimientos?.map((m) => (
-              <div key={m.id} className="flex items-center justify-between gap-2 py-2 border-b border-border/50 text-sm">
-                <div className="min-w-0">
-                  <p className="text-main truncate">{getTipoMovimientoLabel(m.tipo)}{m.descripcion ? ` — ${m.descripcion}` : ''}</p>
-                  <p className="text-xs text-muted">{formatDate(m.fecha)}</p>
+              <div key={m.id} className="py-2 border-b border-border/50 text-sm space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-main truncate">{getTipoMovimientoLabel(m.tipo)}{m.descripcion ? ` — ${m.descripcion}` : ''}</p>
+                    <p className="text-xs text-muted">{formatDate(m.fecha)}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`font-medium ${m.monto < 0 ? 'text-red-400' : 'text-main'}`}>{m.monto < 0 ? '' : '+'}{formatCurrency(m.monto)}</p>
+                    <p className="text-xs text-muted">saldo: {formatCurrency(m.saldoResultante)}</p>
+                  </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className={`font-medium ${m.monto < 0 ? 'text-red-400' : 'text-main'}`}>{m.monto < 0 ? '' : '+'}{formatCurrency(m.monto)}</p>
-                  <p className="text-xs text-muted">saldo: {formatCurrency(m.saldoResultante)}</p>
-                </div>
+                {cliente && (
+                  <div className="flex items-center justify-end gap-2 flex-wrap">
+                    <button
+                      onClick={() => handleDescargarRecibo(m)}
+                      disabled={generandoReciboId === m.id}
+                      title="Descargar recibo"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                    >
+                      {generandoReciboId === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />}
+                      Recibo
+                    </button>
+                    <WhatsappButton telefono={cliente.telefono} mensaje={mensajeWhatsapp(m)} />
+                  </div>
+                )}
               </div>
             ))}
             {(movimientos?.length ?? 0) === 0 && <p className="text-sm text-muted text-center py-4">Sin movimientos todavía</p>}

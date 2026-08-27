@@ -4,13 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import { getBorrowers } from '../services/borrowerService';
 import { getSaldosAportaciones } from '../services/cooperativaService';
 import { AportacionModal } from '../components/cooperativa/AportacionModal';
-import { Search, AlertCircle, PiggyBank, Plus } from 'lucide-react';
+import { AportacionMasivaModal } from '../components/cooperativa/AportacionMasivaModal';
+import { Search, AlertCircle, PiggyBank, Plus, Users } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 
 export function Aportaciones() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMasivaModalOpen, setIsMasivaModalOpen] = useState(false);
 
   const { data: socios, isLoading, error } = useQuery({ queryKey: ['borrowers'], queryFn: () => getBorrowers() });
   const { data: saldos } = useQuery({ queryKey: ['saldosAportaciones'], queryFn: getSaldosAportaciones });
@@ -51,13 +53,22 @@ export function Aportaciones() {
           <h1 className="text-2xl font-bold text-main">Aportaciones</h1>
           <p className="text-muted">Capital social aportado por cada socio (obligatorias, extraordinarias y retiros)</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Registrar Aportación
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setIsMasivaModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-surfaceHighlight border border-border hover:border-primary-500 text-main rounded-lg text-sm font-medium transition-colors"
+          >
+            <Users className="h-4 w-4" />
+            Aportación Masiva
+          </button>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Registrar Aportación
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -123,6 +134,7 @@ export function Aportaciones() {
       </div>
 
       <AportacionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <AportacionMasivaModal isOpen={isMasivaModalOpen} onClose={() => setIsMasivaModalOpen(false)} />
     </div>
   );
 }
