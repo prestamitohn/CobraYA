@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/layout/Layout';
@@ -29,6 +29,7 @@ const Ahorros = lazy(() => import('./pages/Ahorros').then((m) => ({ default: m.A
 const Excedentes = lazy(() => import('./pages/Excedentes').then((m) => ({ default: m.Excedentes })));
 const Admin = lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
 const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })));
+const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
 
 // Portal de autoservicio del socio (rol 'socio') — layout y páginas propios, nunca
 // comparte chunk con el panel del dueño/cobrador.
@@ -81,12 +82,19 @@ function useTenantBlockScreen(): React.ReactNode | null {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const blockScreen = useTenantBlockScreen();
+  const location = useLocation();
 
   if (isLoading) {
     return <PageSpinner />;
   }
 
   if (!isAuthenticated) {
+    // La landing pública solo se sirve en la raíz exacta ("/") — cualquier otra ruta
+    // protegida (ej. /borrowers escrita a mano sin sesión) sigue mandando a /login,
+    // igual que antes.
+    if (location.pathname === '/') {
+      return <LandingPage />;
+    }
     return <Navigate to="/login" replace />;
   }
 
