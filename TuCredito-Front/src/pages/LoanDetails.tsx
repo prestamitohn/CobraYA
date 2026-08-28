@@ -8,7 +8,7 @@ import { getMultasByPrestamo } from '../services/multaService';
 import { getBorrowerById } from '../services/borrowerService';
 import { getContratosByPrestamo, obtenerUrlContrato } from '../services/contractService';
 import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt, AlertTriangle, ShieldAlert, RefreshCw, Info, FileSignature, FileText, Loader2 } from 'lucide-react';
-import { getEstadoPrestamoLabel, getEstadoCuotaLabel } from '../types/cobraya';
+import { getEstadoPrestamoLabel, getEstadoCuotaLabel, getSistemaAmortizacionLabel } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { PaymentModal, PagableItem } from '../components/payments/PaymentModal';
@@ -332,8 +332,12 @@ export function LoanDetails() {
                 <span className="text-main font-medium">{formatCurrency(loan.montoOtorgado)}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-muted">Sistema de Amortización</span>
+                <span className="text-main font-medium">{getSistemaAmortizacionLabel(loan.sistemaAmortizacion)}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-muted">Tasa Interés</span>
-                <span className="text-main font-medium">{loan.tasaInteres}%</span>
+                <span className="text-main font-medium">{loan.tasaInteres}% por período</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted">Frecuencia de Cobro</span>

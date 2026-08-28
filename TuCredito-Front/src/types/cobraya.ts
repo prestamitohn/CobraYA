@@ -351,10 +351,16 @@ export interface MedioPago {
 // de mercado HN). Francés/Alemán/Americano son terminología de banca formal
 // (hipotecas tipo BAC/Ficohsa/LAFISE); quedan disponibles para el prestamista que
 // quiera ofrecer un crédito más formal, pero no son la opción esperada por defecto.
+// La etiqueta de "directo" decía antes "Interés Simple sobre Saldo" — el nombre
+// exactamente contrario a lo que la fórmula hace (ver calcularDirecto() en
+// lib/amortizacion.ts): cobra interés FIJO sobre el capital ORIGINAL en cada cuota,
+// no sobre el saldo pendiente — es el método "flat" que el módulo de transparencia
+// de tasa (TCEA) existe justamente para desenmascarar. Corregido para que el nombre
+// no contradiga la función que ya le explica al usuario la diferencia.
 export const SISTEMAS_AMORTIZACION: { value: SistemaAmortizacion; label: string }[] = [
-  { value: 'directo', label: 'Interés Simple sobre Saldo (el más común en HN)' },
-  { value: 'frances', label: 'Francés — banca formal (Cuota Fija)' },
-  { value: 'aleman', label: 'Alemán — banca formal (Amortización Fija)' },
+  { value: 'directo', label: 'Directo / Flat — interés fijo sobre el capital original (el más común en HN)' },
+  { value: 'frances', label: 'Francés — interés sobre saldo, cuota fija (banca formal)' },
+  { value: 'aleman', label: 'Alemán — interés sobre saldo, capital fijo (banca formal)' },
   { value: 'americano', label: 'Bullet / Americano (Interés primero, capital al final)' },
 ];
 
@@ -364,6 +370,20 @@ export const FRECUENCIAS_COBRO: { value: FrecuenciaCobro; label: string }[] = [
   { value: 'quincenal', label: 'Quincenal' },
   { value: 'mensual', label: 'Mensual' },
 ];
+
+/** Nombre corto para mostrar en una ficha (a diferencia del label largo de
+ * SISTEMAS_AMORTIZACION, pensado para un <select>). "Directo" solo, sin más
+ * contexto, es justo lo que causó la confusión original — siempre se etiqueta
+ * como "Directo (flat)" para que nunca se lea como "sobre saldo" por accidente. */
+export function getSistemaAmortizacionLabel(sistema: SistemaAmortizacion): string {
+  switch (sistema) {
+    case 'directo': return 'Directo (flat)';
+    case 'frances': return 'Francés (sobre saldo)';
+    case 'aleman': return 'Alemán (sobre saldo)';
+    case 'americano': return 'Bullet / Americano';
+    default: return sistema;
+  }
+}
 
 export function getEstadoPrestamoLabel(estado: EstadoPrestamo): string {
   switch (estado) {
