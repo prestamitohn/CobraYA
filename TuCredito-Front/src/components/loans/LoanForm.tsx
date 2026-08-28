@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,7 +6,7 @@ import * as z from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { simulateLoan, createLoan, previsualizarTcea, compararFlatVsSaldos, TceaResultado } from '../../services/loanService';
 import { getBorrowers } from '../../services/borrowerService';
-import type { SimulacionResultado } from '../../lib/amortizacion';
+import { periodosPorAnio, type SimulacionResultado } from '../../lib/amortizacion';
 import { SISTEMAS_AMORTIZACION, FRECUENCIAS_COBRO, FRECUENCIAS_GASTO_ADMINISTRATIVO } from '../../types/cobraya';
 import { Loader2, Calculator, CheckCircle, User, Search, Receipt, AlertTriangle } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -46,6 +46,12 @@ export function LoanForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [simulation, setSimulation] = useState<SimulacionResultado | null>(null);
+  // En Honduras la tasa casi siempre se piensa/cotiza anual ("12% anual"), pero el
+  // motor de amortización necesita la tasa POR PERÍODO (ver comentario en
+  // lib/amortizacion.ts). Este toggle deja entrar cualquiera de las dos y convierte
+  // antes de simular/crear — lo que se guarda en prestamos.tasa_interes SIEMPRE es
+  // la tasa por período, sin cambios de esquema.
+  const [tasaModo, setTasaModo] = useState<'anual' | 'periodo'>('anual');
   const [tcea, setTcea] = useState<TceaResultado | null>(null);
   const [comparativo, setComparativo] = useState<{ interesFlat: number; interesSaldos: number; diferencia: number } | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -70,6 +76,51 @@ export function LoanForm() {
 
   const tieneGastoAdministrativo = watch('tieneGastoAdministrativo');
   const tieneMulta = watch('tieneMulta');
+  const tasaInteresIngresada = watch('tasaInteres');
+  const frecuenciaCobroWatch = watch('frecuenciaCobro');
+  const sistemaAmortizacionWatch = watch('sistemaAmortizacion');
+  const cantidadCuotasWatch = watch('cantidadCuotas');
+  const montoOtorgadoWatch = watch('montoOtorgado');
+
+  // Conversión de "tasa anual" a la tasa por período que de verdad recibe el motor
+  // de amortización — y NO es la misma cuenta para todos los sistemas:
+  //  - Directo (flat): en Honduras "12% anual" casi siempre significa "12% total
+  //    sobre el capital para TODO el préstamo", sin importar el plazo — no se
+  //    prorratea por año. calcularDirecto() multiplica tasa_periodo × n_cuotas para
+  //    obtener el interés total, así que para que ese total dé exactamente el 12%
+  //    declarado, la tasa por período que hay que pasarle es tasa/n_cuotas (no
+  //    tasa/periodos_por_año). Ejemplo real verificado: L10,000 al 12%, 20 cuotas
+  //    semanales → 12/20 = 0.6%/cuota → interés total L1,200, cuota L560, total L11,200.
+  //  - Francés/Alemán/Americano: acá sí es una tasa anual real (interés sobre saldo,
+  //    convención estándar de banca) — se reparte entre los períodos del año.
+  const aTasaPorPeriodo = (
+    tasaIngresada: number,
+    frecuencia: LoanFormData['frecuenciaCobro'],
+    sistema: LoanFormData['sistemaAmortizacion'],
+    cantidadCuotas: number,
+  ): number => {
+    if (tasaModo !== 'anual') return tasaIngresada;
+    if (sistema === 'directo') {
+      return cantidadCuotas > 0 ? tasaIngresada / cantidadCuotas : tasaIngresada;
+    }
+    return tasaIngresada / periodosPorAnio(frecuencia);
+  };
+
+  const tasaPeriodicaEfectiva = useMemo(() => {
+    if (tasaInteresIngresada == null || Number.isNaN(tasaInteresIngresada)) return undefined;
+    return aTasaPorPeriodo(tasaInteresIngresada, frecuenciaCobroWatch, sistemaAmortizacionWatch, Number(cantidadCuotasWatch));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasaInteresIngresada, frecuenciaCobroWatch, sistemaAmortizacionWatch, cantidadCuotasWatch, tasaModo]);
+
+  // Lo que se muestra como "tasa nominal declarada" — a diferencia de la tasa por
+  // período (de uso interno), esto es simplemente lo que el usuario escribió,
+  // re-expresado en términos anuales para que el rótulo "anual" del panel de
+  // transparencia sea siempre coherente, sin volver a pasar por la conversión
+  // específica del flat (que usaría cantidadCuotas, no periodos_por_año).
+  const tasaDeclaradaAnual = useMemo(() => {
+    if (tasaInteresIngresada == null || Number.isNaN(tasaInteresIngresada)) return undefined;
+    return tasaModo === 'anual' ? tasaInteresIngresada : tasaInteresIngresada * periodosPorAnio(frecuenciaCobroWatch);
+  }, [tasaInteresIngresada, frecuenciaCobroWatch, tasaModo]);
 
   const { data: borrowers } = useQuery({
     queryKey: ['borrowers'],
@@ -107,7 +158,7 @@ export function LoanForm() {
       const entrada = {
         montoPrestamo: Number(data.montoOtorgado),
         cantidadCuotas: Number(data.cantidadCuotas),
-        tasaInteres: Number(data.tasaInteres),
+        tasaInteres: aTasaPorPeriodo(Number(data.tasaInteres), data.frecuenciaCobro, data.sistemaAmortizacion, Number(data.cantidadCuotas)),
         fechaInicio: new Date(`${data.fechaOtorgamiento}T00:00:00Z`),
         sistemaAmortizacion: data.sistemaAmortizacion,
         frecuenciaCobro: data.frecuenciaCobro,
@@ -145,7 +196,7 @@ export function LoanForm() {
       clienteId: pendingData.clienteId,
       montoPrestamo: Number(pendingData.montoOtorgado),
       cantidadCuotas: Number(pendingData.cantidadCuotas),
-      tasaInteres: Number(pendingData.tasaInteres),
+      tasaInteres: aTasaPorPeriodo(Number(pendingData.tasaInteres), pendingData.frecuenciaCobro, pendingData.sistemaAmortizacion, Number(pendingData.cantidadCuotas)),
       sistemaAmortizacion: pendingData.sistemaAmortizacion,
       frecuenciaCobro: pendingData.frecuenciaCobro,
       fechaOtorgamiento: pendingData.fechaOtorgamiento,
@@ -230,14 +281,41 @@ export function LoanForm() {
               {errors.montoOtorgado && <p className="mt-1 text-xs text-red-400">{errors.montoOtorgado.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-muted">Tasa de Interés por Período (%)</label>
+              <label className="block text-sm font-medium text-muted">Tasa de Interés (%)</label>
+              <div className="mt-1 flex rounded-lg border border-border overflow-hidden text-xs mb-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTasaModo('anual')}
+                  className={`flex-1 py-1 transition-colors ${tasaModo === 'anual' ? 'bg-primary-500 text-white' : 'text-muted hover:bg-surfaceHighlight'}`}
+                >
+                  Anual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTasaModo('periodo')}
+                  className={`flex-1 py-1 transition-colors ${tasaModo === 'periodo' ? 'bg-primary-500 text-white' : 'text-muted hover:bg-surfaceHighlight'}`}
+                >
+                  Por período
+                </button>
+              </div>
               <input
                 type="number"
                 step="0.1"
                 {...register('tasaInteres', { valueAsNumber: true })}
-                className={`mt-1 block w-full rounded-xl border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:ring-1 transition-all duration-200 ${errors.tasaInteres ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border focus:border-primary-500 focus:ring-primary-500'}`}
+                className={`block w-full rounded-xl border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:ring-1 transition-all duration-200 ${errors.tasaInteres ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border focus:border-primary-500 focus:ring-primary-500'}`}
               />
               {errors.tasaInteres && <p className="mt-1 text-xs text-red-400">{errors.tasaInteres.message}</p>}
+              {tasaModo === 'anual' && sistemaAmortizacionWatch === 'directo' && tasaInteresIngresada != null && !Number.isNaN(tasaInteresIngresada) && (
+                <p className="mt-1 text-xs text-muted">
+                  Flat: se aplica una sola vez sobre el capital para todo el préstamo (no se prorratea por período).
+                  {montoOtorgadoWatch ? ` = ${formatCurrency(montoOtorgadoWatch * (tasaInteresIngresada / 100))} de interés total.` : ''}
+                </p>
+              )}
+              {tasaModo === 'anual' && sistemaAmortizacionWatch !== 'directo' && tasaPeriodicaEfectiva !== undefined && (
+                <p className="mt-1 text-xs text-muted">
+                  ≈ {tasaPeriodicaEfectiva.toLocaleString('es-HN', { maximumFractionDigits: 4 })}% {FRECUENCIAS_COBRO.find((f) => f.value === frecuenciaCobroWatch)?.label.toLowerCase()}
+                </p>
+              )}
             </div>
           </div>
 
@@ -395,7 +473,7 @@ export function LoanForm() {
             {tcea && (
               <div className="mb-4">
                 <TransparenciaTasaCard
-                  tasaNominalAnual={tcea.tasaNominalAnual}
+                  tasaNominalAnual={tasaDeclaradaAnual}
                   tasaEfectivaAnual={tcea.tcea}
                   costoTotalCredito={tcea.costoTotalCredito}
                   comparativo={comparativo}

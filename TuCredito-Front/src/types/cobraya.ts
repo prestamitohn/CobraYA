@@ -238,8 +238,13 @@ export interface Prestamo {
   refinanciadoDeId?: string | null;
   motivoRefinanciamiento?: string | null;
   /** Tasa periódica implícita (%) derivada del flujo real de pagos (TIR) — null en préstamos previos a esta función que quedaron sin cuotas para recalcularla. */
+  /** OJO: esta es la tasa periódica IMPLÍCITA (vía TIR sobre el flujo real), no la
+   * declarada — para un préstamo flat con varias cuotas casi siempre es mayor a
+   * tasaInteres. Se guarda para auditoría/CONSUCOOP, pero la UI NO la muestra como
+   * "tasa declarada" (eso se calcula aparte, tasaInteres × períodos/año). */
   tasaPeriodicaImplicita?: number | null;
-  /** Tasa nominal anual (%) = tasa periódica declarada × períodos por año — no confundir con la TCEA. */
+  /** Anualización simple (sin componer) de tasaPeriodicaImplicita — tampoco es la
+   * tasa declarada, aunque el nombre invite a pensarlo. Mismo comentario que arriba. */
   tasaNominalAnual?: number | null;
   /** TCEA — costo real anualizado del crédito (%), derivado del flujo de pagos. Ver la función SQL calcular_tcea(). */
   tasaEfectivaAnual?: number | null;

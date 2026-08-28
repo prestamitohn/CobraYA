@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getLoanById, deleteLoan, getLoanThatRefinanced, compararFlatVsSaldos } from '../services/loanService';
+import { periodosPorAnio } from '../lib/amortizacion';
 import { getInstallments } from '../services/installmentService';
 import { getGastosAdministrativos } from '../services/gastoAdministrativoService';
 import { getMultasByPrestamo } from '../services/multaService';
@@ -394,7 +395,15 @@ export function LoanDetails() {
 
           <div className="pt-4 border-t border-border">
             <TransparenciaTasaCard
-              tasaNominalAnual={loan.tasaNominalAnual}
+              tasaNominalAnual={
+                // Directo (flat): la tasa guardada es por CUOTA, y calcularDirecto() la
+                // multiplica por cantidadCuotas para el interés total — para reconstruir
+                // "cuánto se declaró en total" hay que deshacer esa misma cuenta (× cuotas,
+                // no × períodos/año, que es la convención de francés/alemán/americano).
+                loan.sistemaAmortizacion === 'directo'
+                  ? loan.tasaInteres * loan.cantidadCuotas
+                  : loan.tasaInteres * periodosPorAnio(loan.frecuenciaCobro)
+              }
               tasaEfectivaAnual={loan.tasaEfectivaAnual}
               costoTotalCredito={loan.costoTotalCredito}
               comparativo={comparativoFlatVsSaldos}

@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { simulateLoan, createLoan } from '../services/loanService';
 import { getBorrowers } from '../services/borrowerService';
-import type { SimulacionResultado } from '../lib/amortizacion';
+import { periodosPorAnio, type SimulacionResultado } from '../lib/amortizacion';
 import { SISTEMAS_AMORTIZACION, FRECUENCIAS_COBRO, SistemaAmortizacion, FrecuenciaCobro } from '../types/cobraya';
 import { Calculator as CalculatorIcon, Banknote, Calendar, Percent, User, X, Check, Search, CalendarDays, BookOpen, ChevronUp, ChevronDown } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
@@ -19,12 +19,43 @@ interface SimulateFormData {
 }
 
 export function Calculator() {
-  const { register, handleSubmit, control } = useForm<SimulateFormData>({
+  const { register, handleSubmit, control, watch } = useForm<SimulateFormData>({
     defaultValues: {
       sistemaAmortizacion: 'directo',
       frecuenciaCobro: 'mensual',
     }
   });
+  // Mismo criterio que en el alta de préstamo (ver comentario largo en LoanForm.tsx):
+  // en Honduras la tasa casi siempre se piensa anual, pero el motor necesita la tasa
+  // POR PERÍODO — y esa conversión NO es la misma para flat que para sobre saldos.
+  // Directo (flat): "12% anual" = 12% total sobre el capital para TODO el préstamo,
+  // sin prorratear por año → se reparte entre cantidadCuotas, no entre periodos/año.
+  const [tasaModo, setTasaModo] = useState<'anual' | 'periodo'>('anual');
+  const interesIngresado = watch('interesPeriodo');
+  const frecuenciaCobroWatch = watch('frecuenciaCobro');
+  const sistemaAmortizacionWatch = watch('sistemaAmortizacion');
+  const cantidadCuotasWatch = watch('cantidadCuotas');
+  const montoPrestamoWatch = watch('montoPrestamo');
+
+  const aTasaPorPeriodo = (
+    tasaIngresada: number,
+    frecuencia: FrecuenciaCobro,
+    sistema: SistemaAmortizacion,
+    cantidadCuotas: number,
+  ): number => {
+    if (tasaModo !== 'anual') return tasaIngresada;
+    if (sistema === 'directo') {
+      return cantidadCuotas > 0 ? tasaIngresada / cantidadCuotas : tasaIngresada;
+    }
+    return tasaIngresada / periodosPorAnio(frecuencia);
+  };
+
+  const tasaPeriodicaEfectiva = useMemo(() => {
+    if (interesIngresado == null || Number.isNaN(interesIngresado)) return undefined;
+    return aTasaPorPeriodo(interesIngresado, frecuenciaCobroWatch, sistemaAmortizacionWatch, Number(cantidadCuotasWatch));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interesIngresado, frecuenciaCobroWatch, sistemaAmortizacionWatch, cantidadCuotasWatch, tasaModo]);
+
   const [result, setResult] = useState<SimulacionResultado | null>(null);
   const [simulationParams, setSimulationParams] = useState<SimulateFormData | null>(null);
   const [simulationError, setSimulationError] = useState('');
@@ -65,7 +96,7 @@ export function Calculator() {
       const resultado = simulateLoan({
         montoPrestamo: Number(data.montoPrestamo),
         cantidadCuotas: Number(data.cantidadCuotas),
-        tasaInteres: Number(data.interesPeriodo),
+        tasaInteres: aTasaPorPeriodo(Number(data.interesPeriodo), data.frecuenciaCobro, data.sistemaAmortizacion, Number(data.cantidadCuotas)),
         fechaInicio: new Date(`${fechaOtorgamiento}T00:00:00Z`),
         sistemaAmortizacion: data.sistemaAmortizacion,
         frecuenciaCobro: data.frecuenciaCobro,
@@ -84,7 +115,7 @@ export function Calculator() {
       clienteId: selectedClienteId,
       montoPrestamo: Number(simulationParams.montoPrestamo),
       cantidadCuotas: Number(simulationParams.cantidadCuotas),
-      tasaInteres: Number(simulationParams.interesPeriodo),
+      tasaInteres: aTasaPorPeriodo(Number(simulationParams.interesPeriodo), simulationParams.frecuenciaCobro, simulationParams.sistemaAmortizacion, Number(simulationParams.cantidadCuotas)),
       sistemaAmortizacion: simulationParams.sistemaAmortizacion,
       frecuenciaCobro: simulationParams.frecuenciaCobro,
       fechaOtorgamiento,
@@ -124,7 +155,23 @@ export function Calculator() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Tasa por Período (%)</label>
+              <label className="block text-sm font-medium text-muted mb-1">Tasa de Interés (%)</label>
+              <div className="flex rounded-lg border border-border overflow-hidden text-xs mb-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTasaModo('anual')}
+                  className={`flex-1 py-1 transition-colors ${tasaModo === 'anual' ? 'bg-primary-500 text-white' : 'text-muted hover:bg-surfaceHighlight'}`}
+                >
+                  Anual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTasaModo('periodo')}
+                  className={`flex-1 py-1 transition-colors ${tasaModo === 'periodo' ? 'bg-primary-500 text-white' : 'text-muted hover:bg-surfaceHighlight'}`}
+                >
+                  Por período
+                </button>
+              </div>
               <div className="relative">
                 <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
                 <input
@@ -135,6 +182,17 @@ export function Calculator() {
                   placeholder="0.0"
                 />
               </div>
+              {tasaModo === 'anual' && sistemaAmortizacionWatch === 'directo' && interesIngresado != null && !Number.isNaN(interesIngresado) && (
+                <p className="mt-1 text-xs text-muted">
+                  Flat: se aplica una sola vez sobre el capital para todo el préstamo (no se prorratea por período).
+                  {montoPrestamoWatch ? ` = ${formatCurrency(montoPrestamoWatch * (interesIngresado / 100))} de interés total.` : ''}
+                </p>
+              )}
+              {tasaModo === 'anual' && sistemaAmortizacionWatch !== 'directo' && tasaPeriodicaEfectiva !== undefined && (
+                <p className="mt-1 text-xs text-muted">
+                  ≈ {tasaPeriodicaEfectiva.toLocaleString('es-HN', { maximumFractionDigits: 4 })}% {FRECUENCIAS_COBRO.find((f) => f.value === frecuenciaCobroWatch)?.label.toLowerCase()}
+                </p>
+              )}
             </div>
 
             <div>
@@ -207,16 +265,16 @@ export function Calculator() {
                 {isGuideOpen && (
                     <div className="space-y-3 text-xs text-muted animate-in fade-in slide-in-from-top-2">
                         <div className="p-3 bg-primary-500/10 rounded-lg border border-primary-500/30">
-                            <span className="font-bold text-primary-400 block mb-1">Interés Simple sobre Saldo (el más usado en HN)</span>
-                            Cuota fija calculada con la tasa aplicada sobre el monto original, repartida en partes iguales. Es la forma en que trabaja la mayoría de los prestamistas informales en Honduras (cobro diario, semanal o quincenal).
+                            <span className="font-bold text-primary-400 block mb-1">Directo / Flat (el más usado en HN)</span>
+                            Cuota fija calculada con la tasa aplicada sobre el monto ORIGINAL en cada cuota, aunque ya se haya abonado capital — por eso su costo real (TCEA) suele ser bastante mayor a la tasa declarada. Es la forma en que trabaja la mayoría de los prestamistas informales en Honduras (cobro diario, semanal o quincenal).
                         </div>
                         <div className="p-3 bg-surfaceHighlight/30 rounded-lg border border-border/50">
-                            <span className="font-bold text-main block mb-1">Francés (banca formal)</span>
-                            Cuota constante. Al principio pagas más interés y menos capital. Es el sistema típico de bancos y financieras (hipotecas, préstamos personales).
+                            <span className="font-bold text-main block mb-1">Francés — sobre saldo (banca formal)</span>
+                            Cuota constante, pero el interés se calcula sobre el saldo pendiente. Al principio pagas más interés y menos capital. Es el sistema típico de bancos y financieras (hipotecas, préstamos personales).
                         </div>
                         <div className="p-3 bg-surfaceHighlight/30 rounded-lg border border-border/50">
-                            <span className="font-bold text-main block mb-1">Alemán (banca formal)</span>
-                            Amortización de capital constante. La cuota disminuye con el tiempo. Pagas menos intereses totales.
+                            <span className="font-bold text-main block mb-1">Alemán — sobre saldo (banca formal)</span>
+                            Amortización de capital constante, interés sobre saldo pendiente. La cuota disminuye con el tiempo. Pagas menos intereses totales.
                         </div>
                         <div className="p-3 bg-surfaceHighlight/30 rounded-lg border border-border/50">
                             <span className="font-bold text-main block mb-1">Americano (banca formal)</span>
@@ -357,7 +415,7 @@ export function Calculator() {
                             <span className="text-main font-medium">{formatCurrency(simulationParams?.montoPrestamo || 0)}</span>
                         </div>
                          <div>
-                            <span className="text-muted block">Tasa</span>
+                            <span className="text-muted block">Tasa ({tasaModo === 'anual' ? 'anual' : 'por período'})</span>
                             <span className="text-main font-medium">{simulationParams?.interesPeriodo}%</span>
                         </div>
                          <div>
