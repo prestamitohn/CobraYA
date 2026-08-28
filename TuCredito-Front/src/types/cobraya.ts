@@ -237,6 +237,14 @@ export interface Prestamo {
   multaPorAtrasoMonto?: number | null;
   refinanciadoDeId?: string | null;
   motivoRefinanciamiento?: string | null;
+  /** Tasa periódica implícita (%) derivada del flujo real de pagos (TIR) — null en préstamos previos a esta función que quedaron sin cuotas para recalcularla. */
+  tasaPeriodicaImplicita?: number | null;
+  /** Tasa nominal anual (%) = tasa periódica declarada × períodos por año — no confundir con la TCEA. */
+  tasaNominalAnual?: number | null;
+  /** TCEA — costo real anualizado del crédito (%), derivado del flujo de pagos. Ver la función SQL calcular_tcea(). */
+  tasaEfectivaAnual?: number | null;
+  /** Suma de cuotas menos capital — cuánto termina pagando el cliente por encima de lo prestado. */
+  costoTotalCredito?: number | null;
   cliente?: Pick<Cliente, 'id' | 'nombre' | 'apellido' | 'documento' | 'telefono'> | null;
 }
 

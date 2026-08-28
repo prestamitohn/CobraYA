@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { simulateLoan, createLoan } from '../../services/loanService';
+import { simulateLoan, createLoan, previsualizarTcea, compararFlatVsSaldos, TceaResultado } from '../../services/loanService';
 import { getBorrowers } from '../../services/borrowerService';
 import type { SimulacionResultado } from '../../lib/amortizacion';
 import { SISTEMAS_AMORTIZACION, FRECUENCIAS_COBRO, FRECUENCIAS_GASTO_ADMINISTRATIVO } from '../../types/cobraya';
@@ -12,6 +12,7 @@ import { Loader2, Calculator, CheckCircle, User, Search, Receipt, AlertTriangle 
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { CurrencyInput } from '../ui/CurrencyInput';
+import { TransparenciaTasaCard } from './TransparenciaTasaCard';
 
 import { useToast } from '../../context/ToastContext';
 import { useLoanAliases } from '../../hooks/useLoanAliases';
@@ -45,6 +46,9 @@ export function LoanForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [simulation, setSimulation] = useState<SimulacionResultado | null>(null);
+  const [tcea, setTcea] = useState<TceaResultado | null>(null);
+  const [comparativo, setComparativo] = useState<{ interesFlat: number; interesSaldos: number; diferencia: number } | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
   const [alias, setAliasInput] = useState('');
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
   const [pendingData, setPendingData] = useState<LoanFormData | null>(null);
@@ -80,6 +84,8 @@ export function LoanForm() {
       }
       addToast('Préstamo creado exitosamente!', 'success');
       setSimulation(null);
+      setTcea(null);
+      setComparativo(null);
       reset();
       setAliasInput('');
       setIsConfirmationOpen(false);
@@ -93,21 +99,37 @@ export function LoanForm() {
     }
   });
 
-  const onSimulate = () => {
+  const onSimulate = async () => {
     const data = getValues();
     if (!data.montoOtorgado || !data.cantidadCuotas || data.tasaInteres === undefined) return;
+    setIsSimulating(true);
     try {
-      const resultado = simulateLoan({
+      const entrada = {
         montoPrestamo: Number(data.montoOtorgado),
         cantidadCuotas: Number(data.cantidadCuotas),
         tasaInteres: Number(data.tasaInteres),
         fechaInicio: new Date(`${data.fechaOtorgamiento}T00:00:00Z`),
         sistemaAmortizacion: data.sistemaAmortizacion,
         frecuenciaCobro: data.frecuenciaCobro,
-      });
+      };
+      const resultado = simulateLoan(entrada);
       setSimulation(resultado);
+
+      // Comparativo flat vs. saldos: solo tiene sentido mostrarlo cuando el sistema
+      // elegido es el flat (directo) — francés/alemán ya cobran sobre saldos.
+      setComparativo(data.sistemaAmortizacion === 'directo' ? compararFlatVsSaldos(entrada) : null);
+
+      try {
+        const tceaResultado = await previsualizarTcea(entrada.montoPrestamo, resultado.detalleCuotas, entrada.frecuenciaCobro);
+        setTcea(tceaResultado);
+      } catch {
+        // La TCEA es informativa — si el RPC falla no debe bloquear la simulación ya calculada.
+        setTcea(null);
+      }
     } catch (err: any) {
       addToast(err.message || 'No se pudo simular el préstamo', 'error');
+    } finally {
+      setIsSimulating(false);
     }
   };
 
@@ -336,9 +358,10 @@ export function LoanForm() {
             <button
               type="button"
               onClick={onSimulate}
-              className="flex flex-1 items-center justify-center rounded-xl border border-border bg-surfaceHighlight px-4 py-3 text-sm font-medium text-main hover:bg-border transition-all duration-200"
+              disabled={isSimulating}
+              className="flex flex-1 items-center justify-center rounded-xl border border-border bg-surfaceHighlight px-4 py-3 text-sm font-medium text-main hover:bg-border transition-all duration-200 disabled:opacity-50"
             >
-              <Calculator className="mr-2 h-4 w-4" />
+              {isSimulating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
               Simular
             </button>
             <button
@@ -368,6 +391,18 @@ export function LoanForm() {
                 <p className="text-lg font-bold text-primary-400">{formatCurrency(totalInteres)}</p>
               </div>
             </div>
+
+            {tcea && (
+              <div className="mb-4">
+                <TransparenciaTasaCard
+                  tasaNominalAnual={tcea.tasaNominalAnual}
+                  tasaEfectivaAnual={tcea.tcea}
+                  costoTotalCredito={tcea.costoTotalCredito}
+                  comparativo={comparativo}
+                />
+              </div>
+            )}
+
             <div className="flex-1 overflow-auto max-h-[400px] custom-scrollbar">
               <table className="w-full text-sm text-left">
                 <thead className="bg-surfaceHighlight text-muted sticky top-0 backdrop-blur-sm">

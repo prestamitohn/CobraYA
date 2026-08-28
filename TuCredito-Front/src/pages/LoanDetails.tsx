@@ -1,7 +1,7 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getLoanById, deleteLoan, getLoanThatRefinanced } from '../services/loanService';
+import { getLoanById, deleteLoan, getLoanThatRefinanced, compararFlatVsSaldos } from '../services/loanService';
 import { getInstallments } from '../services/installmentService';
 import { getGastosAdministrativos } from '../services/gastoAdministrativoService';
 import { getMultasByPrestamo } from '../services/multaService';
@@ -14,6 +14,7 @@ import { formatCurrency, formatDate } from '../utils/formatters';
 import { PaymentModal, PagableItem } from '../components/payments/PaymentModal';
 import { AplicarMultaModal } from '../components/payments/AplicarMultaModal';
 import { RefinanceLoanModal } from '../components/loans/RefinanceLoanModal';
+import { TransparenciaTasaCard } from '../components/loans/TransparenciaTasaCard';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../context/ToastContext';
 import { useLoanAliases } from '../hooks/useLoanAliases';
@@ -74,6 +75,20 @@ export function LoanDetails() {
 
   const tieneGastoAdministrativo = !!loan?.gastoAdministrativoMonto;
   const gastoEsPorCuota = loan?.gastoAdministrativoFrecuencia === 'por_cuota';
+
+  // Comparativo flat vs. saldos: solo aplica cuando el préstamo se armó con el
+  // sistema directo (flat) — francés/alemán ya cobran interés sobre saldo decreciente.
+  const comparativoFlatVsSaldos = useMemo(() => {
+    if (!loan || loan.sistemaAmortizacion !== 'directo') return null;
+    return compararFlatVsSaldos({
+      montoPrestamo: loan.montoOtorgado,
+      cantidadCuotas: loan.cantidadCuotas,
+      tasaInteres: loan.tasaInteres,
+      fechaInicio: new Date(`${loan.fechaOtorgamiento}T00:00:00Z`),
+      sistemaAmortizacion: loan.sistemaAmortizacion,
+      frecuenciaCobro: loan.frecuenciaCobro,
+    });
+  }, [loan]);
   const tieneCronogramaGastoAdministrativo = tieneGastoAdministrativo && !gastoEsPorCuota;
   const { data: gastosAdministrativos } = useQuery({
     queryKey: ['gastosAdministrativos', loanId],
@@ -371,6 +386,15 @@ export function LoanDetails() {
                 <span className="text-main font-medium">{formatCurrency(loan.saldoRestante)}</span>
               </div>
             </div>
+          </div>
+
+          <div className="pt-4 border-t border-border">
+            <TransparenciaTasaCard
+              tasaNominalAnual={loan.tasaNominalAnual}
+              tasaEfectivaAnual={loan.tasaEfectivaAnual}
+              costoTotalCredito={loan.costoTotalCredito}
+              comparativo={comparativoFlatVsSaldos}
+            />
           </div>
         </div>
 

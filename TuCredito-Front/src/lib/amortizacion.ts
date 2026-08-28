@@ -70,6 +70,18 @@ function sumarPeriodo(fecha: Date, numeroPeriodo: number, frecuencia: Frecuencia
   }
 }
 
+/** Períodos de cobro por año según la frecuencia — usado para anualizar la tasa
+ * periódica implícita (nominal_anual = tasa_periodica × periodos_por_año) y para
+ * pedir la TCEA al RPC calcular_tcea() antes de crear el préstamo. */
+export function periodosPorAnio(frecuencia: FrecuenciaCobro): number {
+  switch (frecuencia) {
+    case 'diario': return 365;
+    case 'semanal': return 52;
+    case 'quincenal': return 24;
+    case 'mensual': return 12;
+  }
+}
+
 function validar(entrada: SimulacionEntrada): void {
   if (entrada.montoPrestamo <= 0) throw new Error('El monto del préstamo debe ser mayor a cero');
   if (entrada.cantidadCuotas <= 0) throw new Error('La cantidad de cuotas debe ser mayor a cero');
