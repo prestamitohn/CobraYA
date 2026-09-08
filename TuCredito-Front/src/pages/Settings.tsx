@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, Shield, Moon, User, Globe, Check, AlertCircle, Loader2, Eye, EyeOff, X, Building2, Image, Trash2, Upload, Bell, BellOff } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Moon, User, Globe, Check, AlertCircle, Loader2, Eye, EyeOff, X, Building2, Image, Trash2, Upload, Bell, BellOff, Users, UserCheck, UserX, Smartphone } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
-import { updateProfile, invitarUsuario } from '../services/authService';
+import { updateProfile, invitarUsuario, listUsuarios, setUsuarioActivo } from '../services/authService';
+import { RolUsuario } from '../types/cobraya';
 import { getMyTenant, updateTenant, uploadTenantLogo, removeTenantLogo } from '../services/tenantService';
 import { isPushSupported, getNotificationPermission, hasActivePushSubscription, subscribeToPush, unsubscribeFromPush, sendTestPush } from '../services/pushService';
+import { InstallAppButton } from '../components/ui/InstallAppButton';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -36,20 +38,40 @@ export function Settings() {
 
     const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
     const [isEditBusinessOpen, setIsEditBusinessOpen] = useState(false);
-    const [auditorNombre, setAuditorNombre] = useState('');
-    const [auditorCorreo, setAuditorCorreo] = useState('');
-    const [auditorPassword, setAuditorPassword] = useState('');
+    const [equipoRol, setEquipoRol] = useState<'collector' | 'auditor'>('collector');
+    const [equipoNombre, setEquipoNombre] = useState('');
+    const [equipoCorreo, setEquipoCorreo] = useState('');
+    const [equipoPassword, setEquipoPassword] = useState('');
 
-    const invitarAuditorMutation = useMutation({
-        mutationFn: () => invitarUsuario({ rol: 'auditor', correo: auditorCorreo, password: auditorPassword, nombreUsuario: auditorNombre }),
-        onSuccess: () => {
-            addToast('Auditor invitado correctamente', 'success');
-            setAuditorNombre('');
-            setAuditorCorreo('');
-            setAuditorPassword('');
-        },
-        onError: (error: any) => addToast(error.message || 'Error al invitar al auditor', 'error'),
+    const { data: equipo, refetch: refetchEquipo } = useQuery({
+        queryKey: ['usuarios-tenant'],
+        queryFn: () => listUsuarios(),
+        enabled: isOwner,
     });
+
+    const invitarEquipoMutation = useMutation({
+        mutationFn: () => invitarUsuario({ rol: equipoRol, correo: equipoCorreo, password: equipoPassword, nombreUsuario: equipoNombre }),
+        onSuccess: () => {
+            addToast(equipoRol === 'collector' ? 'Cobrador invitado correctamente' : 'Auditor invitado correctamente', 'success');
+            setEquipoNombre('');
+            setEquipoCorreo('');
+            setEquipoPassword('');
+            refetchEquipo();
+        },
+        onError: (error: any) => addToast(error.message || 'Error al invitar', 'error'),
+    });
+
+    const toggleActivoMutation = useMutation({
+        mutationFn: ({ id, activo }: { id: string; activo: boolean }) => setUsuarioActivo(id, activo),
+        onSuccess: (_data, variables) => {
+            addToast(variables.activo ? 'Usuario reactivado' : 'Usuario desactivado — pierde acceso de inmediato', 'success');
+            refetchEquipo();
+        },
+        onError: (error: any) => addToast(error.message || 'Error al actualizar el usuario', 'error'),
+    });
+
+    const rolLabel: Record<RolUsuario, string> = { owner: 'Dueño', collector: 'Cobrador', socio: 'Socio', auditor: 'Auditor' };
+
     const logoInputRef = useRef<HTMLInputElement>(null);
     const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
@@ -434,40 +456,106 @@ export function Settings() {
         <div className="glass-panel rounded-xl border border-border overflow-hidden">
           <div className="p-6 border-b border-border">
             <h2 className="text-lg font-semibold text-main flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary-500" />
-              Auditoría
+              <Users className="h-5 w-5 text-primary-500" />
+              Equipo
             </h2>
-            <p className="text-sm text-muted mt-1">Invita a un auditor con acceso de solo lectura a toda la información del negocio (nunca puede registrar ni modificar nada).</p>
+            <p className="text-sm text-muted mt-1">Invita cobradores de campo (ven y cobran solo los préstamos que les asignes) o auditores (solo lectura de todo el negocio, nunca registran ni modifican nada).</p>
           </div>
-          <div className="p-6">
+          <div className="p-6 space-y-6">
             <form
-              onSubmit={(e) => { e.preventDefault(); invitarAuditorMutation.mutate(); }}
+              onSubmit={(e) => { e.preventDefault(); invitarEquipoMutation.mutate(); }}
               className="flex items-end gap-3 flex-wrap"
             >
+              <div className="w-full sm:w-auto space-y-1">
+                <label className="text-xs text-muted">Rol</label>
+                <select value={equipoRol} onChange={(e) => setEquipoRol(e.target.value as 'collector' | 'auditor')}
+                  className="w-full sm:w-auto bg-surfaceHighlight border border-border rounded-lg px-3 py-2 text-sm text-main focus:border-primary-500 focus:outline-none">
+                  <option value="collector">Cobrador de campo</option>
+                  <option value="auditor">Auditor</option>
+                </select>
+              </div>
               <div className="flex-1 min-w-[140px] space-y-1">
                 <label className="text-xs text-muted">Nombre</label>
-                <input required value={auditorNombre} onChange={(e) => setAuditorNombre(e.target.value)}
+                <input required value={equipoNombre} onChange={(e) => setEquipoNombre(e.target.value)}
                   className="w-full bg-surfaceHighlight border border-border rounded-lg px-3 py-2 text-sm text-main focus:border-primary-500 focus:outline-none" />
               </div>
               <div className="flex-1 min-w-[180px] space-y-1">
                 <label className="text-xs text-muted">Correo</label>
-                <input required type="email" value={auditorCorreo} onChange={(e) => setAuditorCorreo(e.target.value)}
+                <input required type="email" value={equipoCorreo} onChange={(e) => setEquipoCorreo(e.target.value)}
                   className="w-full bg-surfaceHighlight border border-border rounded-lg px-3 py-2 text-sm text-main focus:border-primary-500 focus:outline-none" />
               </div>
               <div className="flex-1 min-w-[140px] space-y-1">
                 <label className="text-xs text-muted">Contraseña inicial</label>
-                <input required type="text" minLength={8} value={auditorPassword} onChange={(e) => setAuditorPassword(e.target.value)}
+                <input required type="text" minLength={8} value={equipoPassword} onChange={(e) => setEquipoPassword(e.target.value)}
                   className="w-full bg-surfaceHighlight border border-border rounded-lg px-3 py-2 text-sm text-main focus:border-primary-500 focus:outline-none" />
               </div>
-              <button type="submit" disabled={invitarAuditorMutation.isPending}
+              <button type="submit" disabled={invitarEquipoMutation.isPending}
                 className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
-                {invitarAuditorMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                {invitarEquipoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
                 Invitar
               </button>
             </form>
+
+            {equipo && equipo.filter((u) => u.rol !== 'owner').length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-muted border-b border-border">
+                      <th className="pb-2 font-medium">Nombre</th>
+                      <th className="pb-2 font-medium">Correo</th>
+                      <th className="pb-2 font-medium">Rol</th>
+                      <th className="pb-2 font-medium">Estado</th>
+                      <th className="pb-2 font-medium text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipo.filter((u) => u.rol !== 'owner').map((u) => (
+                      <tr key={u.id} className="border-b border-border/50 last:border-0">
+                        <td className="py-2 text-main">{u.nombre}</td>
+                        <td className="py-2 text-muted">{u.correo}</td>
+                        <td className="py-2 text-muted">{rolLabel[u.rol]}</td>
+                        <td className="py-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${u.activo ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                            {u.activo ? 'Activo' : 'Desactivado'}
+                          </span>
+                        </td>
+                        <td className="py-2 text-right">
+                          <button
+                            onClick={() => toggleActivoMutation.mutate({ id: u.id, activo: !u.activo })}
+                            disabled={toggleActivoMutation.isPending}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-surfaceHighlight transition-colors text-main disabled:opacity-50"
+                          >
+                            {u.activo ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
+                            {u.activo ? 'Desactivar' : 'Reactivar'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      <div className="glass-panel rounded-xl border border-border overflow-hidden">
+        <div className="p-6 border-b border-border">
+          <h2 className="text-lg font-semibold text-main flex items-center gap-2">
+            <Smartphone className="h-5 w-5 text-primary-500" />
+            Aplicación
+          </h2>
+        </div>
+        <div className="p-6">
+          <div className="flex items-center justify-between py-2 gap-4 flex-wrap">
+            <div className="min-w-0">
+              <p className="font-medium text-main">Instalar CobraYA</p>
+              <p className="text-sm text-muted">Agregala a la pantalla de inicio de tu celular — acceso directo, sin buscar el link.</p>
+            </div>
+            <InstallAppButton />
+          </div>
+        </div>
+      </div>
 
       <div className="glass-panel rounded-xl border border-border overflow-hidden">
         <div className="p-6 border-b border-border">

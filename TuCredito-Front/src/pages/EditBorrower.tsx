@@ -41,7 +41,9 @@ export function EditBorrower() {
       addToast(`${etiqueta} actualizado correctamente`, 'success');
       navigate('/borrowers');
     } catch (err: any) {
-      const msg = err.message || `Error al actualizar el ${etiqueta.toLowerCase()}`;
+      const msg = err.message?.includes('uq_clientes_tenant_numero_socio')
+        ? 'Ese número de socio ya está en uso — elegí otro.'
+        : err.message || `Error al actualizar el ${etiqueta.toLowerCase()}`;
       setUpdateError(msg);
       addToast(msg, 'error');
     } finally {

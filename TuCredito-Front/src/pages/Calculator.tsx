@@ -3,7 +3,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { simulateLoan, createLoan } from '../services/loanService';
 import { getBorrowers } from '../services/borrowerService';
-import { periodosPorAnio, type SimulacionResultado } from '../lib/amortizacion';
+import { tasaAnualAPorPeriodo, type SimulacionResultado } from '../lib/amortizacion';
 import { SISTEMAS_AMORTIZACION, FRECUENCIAS_COBRO, SistemaAmortizacion, FrecuenciaCobro } from '../types/cobraya';
 import { Calculator as CalculatorIcon, Banknote, Calendar, Percent, User, X, Check, Search, CalendarDays, BookOpen, ChevronUp, ChevronDown } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
@@ -25,11 +25,10 @@ export function Calculator() {
       frecuenciaCobro: 'mensual',
     }
   });
-  // Mismo criterio que en el alta de préstamo (ver comentario largo en LoanForm.tsx):
-  // en Honduras la tasa casi siempre se piensa anual, pero el motor necesita la tasa
-  // POR PERÍODO — y esa conversión NO es la misma para flat que para sobre saldos.
-  // Directo (flat): "12% anual" = 12% total sobre el capital para TODO el préstamo,
-  // sin prorratear por año → se reparte entre cantidadCuotas, no entre periodos/año.
+  // Mismo criterio que en el alta de préstamo (ver comentario largo en
+  // lib/amortizacion.ts:tasaAnualAPorPeriodo): "tasa anual" se prorratea por la
+  // frecuencia de cobro, igual para los 4 sistemas — ya no hay una cuenta aparte
+  // para flat que ignorara el plazo real.
   const [tasaModo, setTasaModo] = useState<'anual' | 'periodo'>('anual');
   const interesIngresado = watch('interesPeriodo');
   const frecuenciaCobroWatch = watch('frecuenciaCobro');
@@ -37,24 +36,16 @@ export function Calculator() {
   const cantidadCuotasWatch = watch('cantidadCuotas');
   const montoPrestamoWatch = watch('montoPrestamo');
 
-  const aTasaPorPeriodo = (
-    tasaIngresada: number,
-    frecuencia: FrecuenciaCobro,
-    sistema: SistemaAmortizacion,
-    cantidadCuotas: number,
-  ): number => {
+  const aTasaPorPeriodo = (tasaIngresada: number, frecuencia: FrecuenciaCobro): number => {
     if (tasaModo !== 'anual') return tasaIngresada;
-    if (sistema === 'directo') {
-      return cantidadCuotas > 0 ? tasaIngresada / cantidadCuotas : tasaIngresada;
-    }
-    return tasaIngresada / periodosPorAnio(frecuencia);
+    return tasaAnualAPorPeriodo(tasaIngresada, frecuencia);
   };
 
   const tasaPeriodicaEfectiva = useMemo(() => {
     if (interesIngresado == null || Number.isNaN(interesIngresado)) return undefined;
-    return aTasaPorPeriodo(interesIngresado, frecuenciaCobroWatch, sistemaAmortizacionWatch, Number(cantidadCuotasWatch));
+    return aTasaPorPeriodo(interesIngresado, frecuenciaCobroWatch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interesIngresado, frecuenciaCobroWatch, sistemaAmortizacionWatch, cantidadCuotasWatch, tasaModo]);
+  }, [interesIngresado, frecuenciaCobroWatch, tasaModo]);
 
   const [result, setResult] = useState<SimulacionResultado | null>(null);
   const [simulationParams, setSimulationParams] = useState<SimulateFormData | null>(null);
@@ -96,7 +87,7 @@ export function Calculator() {
       const resultado = simulateLoan({
         montoPrestamo: Number(data.montoPrestamo),
         cantidadCuotas: Number(data.cantidadCuotas),
-        tasaInteres: aTasaPorPeriodo(Number(data.interesPeriodo), data.frecuenciaCobro, data.sistemaAmortizacion, Number(data.cantidadCuotas)),
+        tasaInteres: aTasaPorPeriodo(Number(data.interesPeriodo), data.frecuenciaCobro),
         fechaInicio: new Date(`${fechaOtorgamiento}T00:00:00Z`),
         sistemaAmortizacion: data.sistemaAmortizacion,
         frecuenciaCobro: data.frecuenciaCobro,
@@ -115,7 +106,7 @@ export function Calculator() {
       clienteId: selectedClienteId,
       montoPrestamo: Number(simulationParams.montoPrestamo),
       cantidadCuotas: Number(simulationParams.cantidadCuotas),
-      tasaInteres: aTasaPorPeriodo(Number(simulationParams.interesPeriodo), simulationParams.frecuenciaCobro, simulationParams.sistemaAmortizacion, Number(simulationParams.cantidadCuotas)),
+      tasaInteres: aTasaPorPeriodo(Number(simulationParams.interesPeriodo), simulationParams.frecuenciaCobro),
       sistemaAmortizacion: simulationParams.sistemaAmortizacion,
       frecuenciaCobro: simulationParams.frecuenciaCobro,
       fechaOtorgamiento,
@@ -182,10 +173,12 @@ export function Calculator() {
                   placeholder="0.0"
                 />
               </div>
-              {tasaModo === 'anual' && sistemaAmortizacionWatch === 'directo' && interesIngresado != null && !Number.isNaN(interesIngresado) && (
+              {tasaModo === 'anual' && sistemaAmortizacionWatch === 'directo' && tasaPeriodicaEfectiva !== undefined && (
                 <p className="mt-1 text-xs text-muted">
-                  Flat: se aplica una sola vez sobre el capital para todo el préstamo (no se prorratea por período).
-                  {montoPrestamoWatch ? ` = ${formatCurrency(montoPrestamoWatch * (interesIngresado / 100))} de interés total.` : ''}
+                  ≈ {tasaPeriodicaEfectiva.toLocaleString('es-HN', { maximumFractionDigits: 4 })}% {FRECUENCIAS_COBRO.find((f) => f.value === frecuenciaCobroWatch)?.label.toLowerCase()} — se prorratea por el plazo real:
+                  {montoPrestamoWatch && cantidadCuotasWatch
+                    ? ` ${cantidadCuotasWatch} cuota(s) = ${formatCurrency(montoPrestamoWatch * (tasaPeriodicaEfectiva / 100) * Number(cantidadCuotasWatch))} de interés total.`
+                    : ''}
                 </p>
               )}
               {tasaModo === 'anual' && sistemaAmortizacionWatch !== 'directo' && tasaPeriodicaEfectiva !== undefined && (

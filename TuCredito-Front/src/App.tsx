@@ -22,6 +22,7 @@ const EditBorrower = lazy(() => import('./pages/EditBorrower').then((m) => ({ de
 const BorrowerDetails = lazy(() => import('./pages/BorrowerDetails').then((m) => ({ default: m.BorrowerDetails })));
 const Payments = lazy(() => import('./pages/Payments').then((m) => ({ default: m.Payments })));
 const Multas = lazy(() => import('./pages/Multas').then((m) => ({ default: m.Multas })));
+const Reportes = lazy(() => import('./pages/Reportes').then((m) => ({ default: m.Reportes })));
 const Calculator = lazy(() => import('./pages/Calculator').then((m) => ({ default: m.Calculator })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 const Aportaciones = lazy(() => import('./pages/Aportaciones').then((m) => ({ default: m.Aportaciones })));
@@ -144,6 +145,27 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Rutas de gestión bloqueadas para el cobrador de campo ('collector') — solo cobra lo
+ * que le asignaron, nunca administra (Configuración, alta de préstamos/clientes,
+ * módulo de cooperativa). El auditor SÍ conserva acceso (solo lectura, ya reutiliza
+ * este mismo panel — ver nota de admisión de 'auditor' en el módulo de cooperativas).
+ * La RLS ya bloquea a nivel de datos lo que el collector no debe tocar (crear_prestamo,
+ * tablas de cooperativa, etc.); esto solo evita que llegue a una pantalla que le va a
+ * rechazar todo. */
+function OwnerRoute({ children }: { children: React.ReactNode }) {
+  const { isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return <PageSpinner />;
+  }
+
+  if (user?.rol === 'collector') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 /** Aportaciones/Excedentes solo aplican a tenants tipo cooperativa — los RPC ya lo validan server-side, esto solo evita que un prestamista llegue a una página que no le sirve. */
 function CooperativaRoute({ children }: { children: React.ReactNode }) {
   const { isLoading, tenantEstado } = useAuth();
@@ -173,19 +195,20 @@ function AppRoutes() {
         }>
           <Route index element={<Dashboard />} />
           <Route path="loans" element={<Loans />} />
-          <Route path="loans/create" element={<CreateLoan />} />
+          <Route path="loans/create" element={<OwnerRoute><CreateLoan /></OwnerRoute>} />
           <Route path="loans/:id" element={<LoanDetails />} />
           <Route path="borrowers" element={<Borrowers />} />
-          <Route path="borrowers/create" element={<CreateBorrower />} />
-          <Route path="borrowers/edit/:documento" element={<EditBorrower />} />
+          <Route path="borrowers/create" element={<OwnerRoute><CreateBorrower /></OwnerRoute>} />
+          <Route path="borrowers/edit/:documento" element={<OwnerRoute><EditBorrower /></OwnerRoute>} />
           <Route path="borrowers/:documento" element={<BorrowerDetails />} />
           <Route path="payments" element={<Payments />} />
           <Route path="multas" element={<Multas />} />
-          <Route path="aportaciones" element={<CooperativaRoute><Aportaciones /></CooperativaRoute>} />
-          <Route path="ahorros" element={<CooperativaRoute><Ahorros /></CooperativaRoute>} />
-          <Route path="excedentes" element={<CooperativaRoute><Excedentes /></CooperativaRoute>} />
+          <Route path="reportes" element={<OwnerRoute><Reportes /></OwnerRoute>} />
+          <Route path="aportaciones" element={<OwnerRoute><CooperativaRoute><Aportaciones /></CooperativaRoute></OwnerRoute>} />
+          <Route path="ahorros" element={<OwnerRoute><CooperativaRoute><Ahorros /></CooperativaRoute></OwnerRoute>} />
+          <Route path="excedentes" element={<OwnerRoute><CooperativaRoute><Excedentes /></CooperativaRoute></OwnerRoute>} />
           <Route path="calculator" element={<Calculator />} />
-          <Route path="settings" element={<Settings />} />
+          <Route path="settings" element={<OwnerRoute><Settings /></OwnerRoute>} />
           <Route path="admin" element={<AdminRoute><Admin /></AdminRoute>} />
         </Route>
 

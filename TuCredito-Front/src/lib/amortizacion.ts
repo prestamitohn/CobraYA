@@ -82,6 +82,24 @@ export function periodosPorAnio(frecuencia: FrecuenciaCobro): number {
   }
 }
 
+/** Convierte una tasa ANUAL declarada ("12% anual") a la tasa POR PERÍODO que
+ * necesita el motor de amortización, prorrateando por la frecuencia de cobro —
+ * igual para los 4 sistemas.
+ *
+ * Antes existía una rama especial para "directo" (flat) que dividía entre
+ * `cantidadCuotas` en vez de entre `periodosPorAnio(frecuencia)`: eso hacía que
+ * un flat SIEMPRE cobrara el 12% completo sobre el capital sin importar el
+ * plazo real (6 cuotas o 12 cuotas daban el mismo interés total). Reportado
+ * como bug real por una cooperativa cliente: un préstamo otorgado a mitad de
+ * año, a 6 meses, debía cobrar la mitad del interés anual, no el año completo.
+ * Como calcularDirecto() hace `interesTotal = monto × i_periodo × n`, usar la
+ * misma fórmula que francés/alemán/americano (tasa/períodos-por-año) ya
+ * prorratea correctamente por el plazo: 12% anual a 6 cuotas mensuales da
+ * 1%/mes → interés total 6% del capital; a 12 cuotas da 12%, igual que antes. */
+export function tasaAnualAPorPeriodo(tasaAnual: number, frecuencia: FrecuenciaCobro): number {
+  return tasaAnual / periodosPorAnio(frecuencia);
+}
+
 function validar(entrada: SimulacionEntrada): void {
   if (entrada.montoPrestamo <= 0) throw new Error('El monto del préstamo debe ser mayor a cero');
   if (entrada.cantidadCuotas <= 0) throw new Error('La cantidad de cuotas debe ser mayor a cero');

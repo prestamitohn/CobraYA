@@ -180,6 +180,7 @@ export interface LoanFilters {
   nombre?: string;
   estado?: EstadoPrestamo;
   clienteId?: string;
+  cobradorId?: string;
   fechaDesde?: string; // yyyy-mm-dd, sobre fecha_otorgamiento
   fechaHasta?: string; // yyyy-mm-dd, sobre fecha_otorgamiento
   montoMin?: number;
@@ -191,6 +192,7 @@ export async function getLoansByFilter(filters: LoanFilters): Promise<Prestamo[]
   return loans.filter((loan) => {
     if (filters.estado && loan.estado !== filters.estado) return false;
     if (filters.clienteId && loan.clienteId !== filters.clienteId) return false;
+    if (filters.cobradorId && loan.cobradorId !== filters.cobradorId) return false;
     if (filters.nombre) {
       const term = filters.nombre.toLowerCase();
       const nombreCompleto = `${loan.cliente?.nombre ?? ''} ${loan.cliente?.apellido ?? ''}`.toLowerCase();
@@ -204,6 +206,12 @@ export async function getLoansByFilter(filters: LoanFilters): Promise<Prestamo[]
     if (filters.montoMax !== undefined && loan.montoOtorgado > filters.montoMax) return false;
     return true;
   });
+}
+
+/** Asigna o reasigna el cobrador de campo de un préstamo (el owner es quien puede escribir prestamos; el trigger validar_cobrador_prestamo exige que sea un usuario collector del mismo tenant, o null para desasignar). */
+export async function assignCollector(prestamoId: string, cobradorId: string | null): Promise<void> {
+  const { error } = await supabase.from('prestamos').update({ cobrador_id: cobradorId }).eq('id', prestamoId);
+  if (error) throw error;
 }
 
 export async function archiveLoan(id: string): Promise<void> {

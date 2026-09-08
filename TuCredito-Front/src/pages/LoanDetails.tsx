@@ -1,14 +1,15 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { getLoanById, deleteLoan, getLoanThatRefinanced, compararFlatVsSaldos } from '../services/loanService';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getLoanById, deleteLoan, getLoanThatRefinanced, compararFlatVsSaldos, assignCollector } from '../services/loanService';
+import { listUsuarios } from '../services/authService';
 import { periodosPorAnio } from '../lib/amortizacion';
 import { getInstallments } from '../services/installmentService';
 import { getGastosAdministrativos } from '../services/gastoAdministrativoService';
 import { getMultasByPrestamo } from '../services/multaService';
 import { getBorrowerById } from '../services/borrowerService';
 import { getContratosByPrestamo, obtenerUrlContrato } from '../services/contractService';
-import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt, AlertTriangle, ShieldAlert, RefreshCw, Info, FileSignature, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, PieChart, AlertCircle, Clock, CreditCard, Trash2, Zap, Edit2, Save, X, Receipt, AlertTriangle, ShieldAlert, RefreshCw, Info, FileSignature, FileText, Loader2, UserCog } from 'lucide-react';
 import { getEstadoPrestamoLabel, getEstadoCuotaLabel, getSistemaAmortizacionLabel } from '../types/cobraya';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -29,6 +30,7 @@ export function LoanDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const queryClient = useQueryClient();
   const { getAlias, setAlias } = useLoanAliases();
   const loanId = id || '';
 
@@ -66,6 +68,20 @@ export function LoanDetails() {
     queryKey: ['loan', loanId],
     queryFn: () => getLoanById(loanId),
     enabled: !!loanId,
+  });
+
+  const { data: cobradores } = useQuery({
+    queryKey: ['usuarios-tenant', 'collector'],
+    queryFn: () => listUsuarios('collector'),
+  });
+
+  const assignCollectorMutation = useMutation({
+    mutationFn: (cobradorId: string | null) => assignCollector(loanId, cobradorId),
+    onSuccess: () => {
+      addToast('Cobrador actualizado', 'success');
+      queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+    },
+    onError: (error: any) => addToast(error.message || 'Error al asignar el cobrador', 'error'),
   });
 
   const { data: installments, isLoading: isLoadingInstallments } = useQuery({
@@ -280,6 +296,24 @@ export function LoanDetails() {
         </div>
       </div>
 
+      {cobradores && cobradores.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <UserCog className="h-4 w-4 text-muted" />
+          <span className="text-sm text-muted">Cobrador asignado:</span>
+          <select
+            value={loan.cobradorId ?? ''}
+            onChange={(e) => assignCollectorMutation.mutate(e.target.value || null)}
+            disabled={assignCollectorMutation.isPending}
+            className="bg-surfaceHighlight border border-border rounded-lg px-2 py-1 text-sm text-main focus:border-primary-500 focus:outline-none disabled:opacity-50"
+          >
+            <option value="">-- Sin asignar --</option>
+            {cobradores.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {loan.estado === 'refinanciado' && (
         <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
           <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
@@ -395,15 +429,14 @@ export function LoanDetails() {
 
           <div className="pt-4 border-t border-border">
             <TransparenciaTasaCard
-              tasaNominalAnual={
-                // Directo (flat): la tasa guardada es por CUOTA, y calcularDirecto() la
-                // multiplica por cantidadCuotas para el interés total — para reconstruir
-                // "cuánto se declaró en total" hay que deshacer esa misma cuenta (× cuotas,
-                // no × períodos/año, que es la convención de francés/alemán/americano).
-                loan.sistemaAmortizacion === 'directo'
-                  ? loan.tasaInteres * loan.cantidadCuotas
-                  : loan.tasaInteres * periodosPorAnio(loan.frecuenciaCobro)
-              }
+              // La tasa guardada es siempre por período, y se reconstruye a anual
+              // prorrateando por la frecuencia — igual para los 4 sistemas desde la
+              // corrección del prorrateo (ver lib/amortizacion.ts:tasaAnualAPorPeriodo).
+              // OJO con préstamos flat creados ANTES de esa corrección: en esos, la
+              // tasa por período se derivaba de tasaAnual/cantidadCuotas, así que esta
+              // reconstrucción no recupera exactamente la tasa anual que se declaró
+              // entonces — es una limitación conocida, no afecta el interés ya cobrado.
+              tasaNominalAnual={loan.tasaInteres * periodosPorAnio(loan.frecuenciaCobro)}
               tasaEfectivaAnual={loan.tasaEfectivaAnual}
               costoTotalCredito={loan.costoTotalCredito}
               comparativo={comparativoFlatVsSaldos}

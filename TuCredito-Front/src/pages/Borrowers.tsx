@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getBorrowers, toggleBorrowerStatus, BorrowerFilters } from '../services/borrowerService';
+import { getBorrowers, toggleBorrowerStatus, darBajaSocio, reactivarSocio, BorrowerFilters } from '../services/borrowerService';
 import { getMyTenant } from '../services/tenantService';
 import { getDelinquencyDetails } from '../services/dashboardService';
 import { getClasificacionesClientes } from '../services/clasificacionService';
 import { getClasificacionLabel, getClasificacionColorClass, Cliente, ClasificacionCliente } from '../types/cobraya';
-import { Plus, Search, User, Mail, Phone, MapPin, AlertCircle, Filter, X, Power, Pencil, ShieldAlert } from 'lucide-react';
+import { Plus, Search, User, Mail, Phone, MapPin, AlertCircle, Filter, X, Power, Pencil, ShieldAlert, UserX, RotateCcw, BadgeCheck } from 'lucide-react';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
+import { DarBajaModal } from '../components/borrowers/DarBajaModal';
 import { useToast } from '../context/ToastContext';
 import { ExportMenu, ExportColumn } from '../components/ui/ExportMenu';
+import { formatDate } from '../utils/formatters';
 
 export function Borrowers() {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ export function Borrowers() {
   const [activeFilter, setActiveFilter] = useState<string>('all'); // all, active, inactive
   const [clasificacionFilter, setClasificacionFilter] = useState<ClasificacionCliente | ''>('');
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id?: string; currentStatus?: boolean }>({ isOpen: false });
+  const [bajaModal, setBajaModal] = useState<{ isOpen: boolean; id?: string; nombre?: string }>({ isOpen: false });
 
   const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant });
   const esCooperativa = tenant?.tipoTenant === 'cooperativa';
@@ -50,6 +53,29 @@ export function Borrowers() {
     }
   };
 
+  const bajaMutation = useMutation({
+    mutationFn: ({ id, motivo }: { id: string; motivo: string }) => darBajaSocio(id, motivo),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['borrowers'] });
+      addToast(`${etiqueta} dado de baja correctamente`, 'success');
+      setBajaModal({ isOpen: false });
+    },
+    onError: (error: any) => {
+      addToast(error.message || `Error al dar de baja al ${etiquetaMin}`, 'error');
+    },
+  });
+
+  const reactivarMutation = useMutation({
+    mutationFn: (id: string) => reactivarSocio(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['borrowers'] });
+      addToast(`${etiqueta} reactivado correctamente`, 'success');
+    },
+    onError: (error: any) => {
+      addToast(error.message || `Error al reactivar al ${etiquetaMin}`, 'error');
+    },
+  });
+
   const getFilters = (): BorrowerFilters => {
     const filters: BorrowerFilters = {};
 
@@ -57,8 +83,13 @@ export function Borrowers() {
       filters.nombre = debouncedSearchTerm;
     }
 
-    if (activeFilter !== 'all') {
-      filters.activo = activeFilter === 'active';
+    if (activeFilter === 'active') {
+      filters.activo = true;
+    } else if (activeFilter === 'inactive') {
+      filters.activo = false;
+      filters.retirado = false;
+    } else if (activeFilter === 'retirado') {
+      filters.retirado = true;
     }
 
     return filters;
@@ -87,13 +118,14 @@ export function Borrowers() {
     : borrowers;
 
   const borrowerExportColumns: ExportColumn<Cliente>[] = [
+    ...(esCooperativa ? [{ header: 'N° Socio', value: (b: Cliente) => b.numeroSocio ?? '' }] : []),
     { header: 'Nombre', value: (b) => b.nombre },
     { header: 'Apellido', value: (b) => b.apellido ?? '' },
     { header: 'Identidad', value: (b) => b.documento },
     { header: 'Teléfono', value: (b) => b.telefono ?? '' },
     { header: 'Domicilio', value: (b) => b.domicilio ?? '' },
     { header: 'Correo', value: (b) => b.correo ?? '' },
-    { header: 'Estado', value: (b) => b.activo ? 'Activo' : 'Inactivo' },
+    { header: 'Estado', value: (b) => b.fechaRetiro ? 'Retirado' : b.activo ? 'Activo' : 'Inactivo' },
     { header: 'Clasificación', value: (b) => {
       const c = clasificacionPorCliente.get(b.id);
       return c ? getClasificacionLabel(c.clasificacion) : '';
@@ -148,6 +180,15 @@ export function Borrowers() {
         isLoading={toggleStatusMutation.isPending}
       />
 
+      <DarBajaModal
+        isOpen={bajaModal.isOpen}
+        onClose={() => setBajaModal({ isOpen: false })}
+        onConfirm={(motivo) => bajaModal.id && bajaMutation.mutate({ id: bajaModal.id, motivo })}
+        nombre={bajaModal.nombre ?? ''}
+        etiqueta={etiqueta}
+        isLoading={bajaMutation.isPending}
+      />
+
       <div className="glass-panel p-4 rounded-xl border border-border">
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center gap-4">
@@ -197,6 +238,12 @@ export function Borrowers() {
                     className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${activeFilter === 'inactive' ? 'bg-primary-500 text-white' : 'text-muted hover:text-main'}`}
                   >
                     Inactivos
+                  </button>
+                  <button
+                    onClick={() => setActiveFilter('retirado')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${activeFilter === 'retirado' ? 'bg-primary-500 text-white' : 'text-muted hover:text-main'}`}
+                  >
+                    Retirados
                   </button>
                 </div>
               </div>
@@ -258,11 +305,18 @@ export function Borrowers() {
                       {borrower.nombre} {borrower.apellido}
                     </h3>
                     <p className="text-xs text-muted truncate">Identidad: {borrower.documento}</p>
+                    {esCooperativa && borrower.numeroSocio && (
+                      <p className="text-xs text-muted truncate flex items-center gap-1">
+                        <BadgeCheck className="h-3 w-3 flex-shrink-0" /> N° {borrower.numeroSocio}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${borrower.activo ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                    {borrower.activo ? 'Activo' : 'Inactivo'}
+                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                    borrower.fechaRetiro ? 'bg-gray-500/10 text-gray-400' : borrower.activo ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+                  }`}>
+                    {borrower.fechaRetiro ? 'Retirado' : borrower.activo ? 'Activo' : 'Inactivo'}
                   </span>
                   {clasificacion && (
                     <span className={`px-2 py-1 rounded-md text-xs font-medium border ${getClasificacionColorClass(clasificacion.clasificacion)}`}>
@@ -276,6 +330,12 @@ export function Borrowers() {
                   )}
                 </div>
               </div>
+
+              {borrower.fechaRetiro && (
+                <div className="mb-3 text-xs text-muted bg-gray-500/5 border border-gray-500/20 rounded-lg px-2.5 py-1.5">
+                  Baja el {formatDate(borrower.fechaRetiro)}{borrower.motivoRetiro ? ` — ${borrower.motivoRetiro}` : ''}
+                </div>
+              )}
 
               {clasificacion?.noRecomendadoRefinanciamiento && (
                 <div className="mb-3 flex items-center gap-1.5 text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-2.5 py-1.5">
@@ -322,13 +382,35 @@ export function Borrowers() {
                     </button>
                  </div>
 
-                 <button
-                    onClick={() => handleToggleStatus(borrower.id, borrower.activo)}
-                    title={borrower.activo ? `Desactivar ${etiqueta}` : `Activar ${etiqueta}`}
-                    className={`p-2 rounded-full transition-colors ${borrower.activo ? 'text-green-500 hover:bg-green-500/10' : 'text-red-500 hover:bg-red-500/10'}`}
-                 >
-                    <Power className="h-4 w-4" />
-                 </button>
+                 <div className="flex items-center gap-1">
+                   {borrower.fechaRetiro ? (
+                     <button
+                        onClick={() => reactivarMutation.mutate(borrower.id)}
+                        disabled={reactivarMutation.isPending}
+                        title={`Reactivar ${etiqueta.toLowerCase()}`}
+                        className="p-2 rounded-full transition-colors text-primary-500 hover:bg-primary-500/10 disabled:opacity-50"
+                     >
+                        <RotateCcw className="h-4 w-4" />
+                     </button>
+                   ) : (
+                     <>
+                       <button
+                          onClick={() => handleToggleStatus(borrower.id, borrower.activo)}
+                          title={borrower.activo ? `Desactivar ${etiqueta}` : `Activar ${etiqueta}`}
+                          className={`p-2 rounded-full transition-colors ${borrower.activo ? 'text-green-500 hover:bg-green-500/10' : 'text-red-500 hover:bg-red-500/10'}`}
+                       >
+                          <Power className="h-4 w-4" />
+                       </button>
+                       <button
+                          onClick={() => setBajaModal({ isOpen: true, id: borrower.id, nombre: `${borrower.nombre} ${borrower.apellido ?? ''}`.trim() })}
+                          title={`Dar de baja definitiva a este ${etiquetaMin}`}
+                          className="p-2 rounded-full transition-colors text-muted hover:text-red-400 hover:bg-red-500/10"
+                       >
+                          <UserX className="h-4 w-4" />
+                       </button>
+                     </>
+                   )}
+                 </div>
               </div>
             </div>
           ); })}

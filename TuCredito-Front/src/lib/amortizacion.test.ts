@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calcularInteresMoratorio, calcularSimulacion, type SimulacionEntrada } from './amortizacion';
+import { calcularInteresMoratorio, calcularSimulacion, tasaAnualAPorPeriodo, type SimulacionEntrada } from './amortizacion';
 
 const base: Omit<SimulacionEntrada, 'sistemaAmortizacion'> = {
   montoPrestamo: 10000,
@@ -114,6 +114,33 @@ describe('calcularSimulacion', () => {
       expect(r.detalleCuotas[0].fechaVencimiento.toISOString().slice(0, 10)).toBe('2026-01-16');
       expect(r.detalleCuotas[1].fechaVencimiento.toISOString().slice(0, 10)).toBe('2026-01-31');
     });
+  });
+});
+
+describe('tasaAnualAPorPeriodo', () => {
+  // Caso real reportado por una cooperativa cliente (FAN): un préstamo otorgado a
+  // mitad de año, a 6 meses, debía cobrar la mitad del interés anual declarado —
+  // antes de este fix, el sistema "directo" (flat) cobraba el 12% completo sin
+  // importar el plazo, porque dividía entre cantidadCuotas en vez de entre
+  // períodos-por-año.
+  it('prorratea 12% anual mensual a 1%/mes, igual para cualquier plazo', () => {
+    expect(tasaAnualAPorPeriodo(12, 'mensual')).toBe(1);
+  });
+
+  it('un flat a 6 cuotas mensuales cobra la mitad de interés que a 12 cuotas (mismo % anual declarado)', () => {
+    const tasaPeriodo = tasaAnualAPorPeriodo(12, 'mensual'); // 1%/mes
+    const entrada6: SimulacionEntrada = { ...base, cantidadCuotas: 6, tasaInteres: tasaPeriodo, sistemaAmortizacion: 'directo' };
+    const entrada12: SimulacionEntrada = { ...base, cantidadCuotas: 12, tasaInteres: tasaPeriodo, sistemaAmortizacion: 'directo' };
+
+    const interesTotal6 = calcularSimulacion(entrada6).detalleCuotas.reduce((acc, c) => acc + c.interes, 0);
+    const interesTotal12 = calcularSimulacion(entrada12).detalleCuotas.reduce((acc, c) => acc + c.interes, 0);
+
+    expect(interesTotal6).toBe(600); // 6% de 10,000 (mitad del año)
+    expect(interesTotal12).toBe(1200); // 12% de 10,000 (año completo) — no cambia respecto al comportamiento anterior
+  });
+
+  it('semanal reparte entre 52 períodos por año', () => {
+    expect(tasaAnualAPorPeriodo(52, 'semanal')).toBe(1);
   });
 });
 

@@ -20,6 +20,7 @@ const PAYMENT_EXPORT_COLUMNS: ExportColumn<PagoDetalle>[] = [
   { header: 'Fecha', value: (p) => formatDate(p.fechaPago) },
   { header: 'Medio de Pago', value: (p) => p.medioPago },
   { header: 'Estado', value: (p) => p.estado },
+  { header: 'Cobrador', value: (p) => p.cobradorNombre ?? '' },
 ];
 
 export function Payments() {
@@ -124,6 +125,7 @@ export function Payments() {
                 <th className="px-6 py-3 font-medium">Fecha</th>
                 <th className="px-6 py-3 font-medium">Medio de Pago</th>
                 <th className="px-6 py-3 font-medium">Estado</th>
+                <th className="px-6 py-3 font-medium">Cobrador</th>
                 <th className="px-6 py-3 font-medium text-right">Acciones</th>
               </tr>
             </thead>
@@ -149,6 +151,7 @@ export function Payments() {
                         {payment.estado}
                      </StatusBadge>
                   </td>
+                  <td className="px-6 py-4 text-muted">{payment.cobradorNombre ?? '-'}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2 flex-wrap">
                       <button
@@ -167,7 +170,7 @@ export function Payments() {
               ))}
               {filteredPayments?.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-muted">
+                  <td colSpan={8} className="px-6 py-8 text-center text-muted">
                     No se encontraron pagos
                   </td>
                 </tr>

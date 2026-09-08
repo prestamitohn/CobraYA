@@ -4,6 +4,7 @@ import { MedioPago } from '../types/cobraya';
 export interface PagoDetalle {
   id: string;
   cuotaId: string | null;
+  prestamoId: string | null;
   /** 'cuota' | 'gasto' | 'multa' — de qué tabla viene este pago, ya que pagos cubre las tres. */
   tipo: 'cuota' | 'gasto' | 'multa';
   /** Texto listo para mostrar: "Cuota 3/12", "Gasto Administrativo #2", "Multa por Atraso". */
@@ -18,6 +19,8 @@ export interface PagoDetalle {
   descuento: number;
   recargo: number;
   estado: string;
+  /** Quién registró el pago (usuarios.nombre) — null si lo cobró el dueño sin cuenta de cobrador asignada. */
+  cobradorNombre: string | null;
 }
 
 interface ClienteEmbed {
@@ -38,51 +41,58 @@ interface PagoRow {
   descuento: number;
   recargo: number;
   estado: string;
+  cobrador: { nombre: string } | null;
   cuota: {
     nro_cuota: number;
-    prestamo: { cantidad_cuotas: number; cliente: ClienteEmbed | null } | null;
+    prestamo: { id: string; cantidad_cuotas: number; cliente: ClienteEmbed | null } | null;
   } | null;
   gasto: {
     numero: number;
-    prestamo: { cliente: ClienteEmbed | null } | null;
+    prestamo: { id: string; cliente: ClienteEmbed | null } | null;
   } | null;
   multa: {
     motivo: string;
-    prestamo: { cliente: ClienteEmbed | null } | null;
+    prestamo: { id: string; cliente: ClienteEmbed | null } | null;
   } | null;
   medio_pago: { nombre: string } | null;
 }
 
 const PAGO_SELECT = `
   id, cuota_id, gasto_administrativo_id, multa_id, fecha_pago, monto, descuento, recargo, estado,
-  cuota:cuotas(nro_cuota, prestamo:prestamos(cantidad_cuotas, cliente:clientes(id, nombre, apellido, documento, telefono))),
-  gasto:gastos_administrativos(numero, prestamo:prestamos(cliente:clientes(id, nombre, apellido, documento, telefono))),
-  multa:multas(motivo, prestamo:prestamos(cliente:clientes(id, nombre, apellido, documento, telefono))),
-  medio_pago:medios_pago(nombre)
+  cuota:cuotas(nro_cuota, prestamo:prestamos(id, cantidad_cuotas, cliente:clientes(id, nombre, apellido, documento, telefono))),
+  gasto:gastos_administrativos(numero, prestamo:prestamos(id, cliente:clientes(id, nombre, apellido, documento, telefono))),
+  multa:multas(motivo, prestamo:prestamos(id, cliente:clientes(id, nombre, apellido, documento, telefono))),
+  medio_pago:medios_pago(nombre),
+  cobrador:usuarios(nombre)
 `;
 
 function mapPago(row: PagoRow): PagoDetalle {
   let tipo: PagoDetalle['tipo'] = 'cuota';
   let concepto = '-';
   let cliente: ClienteEmbed | null = null;
+  let prestamoId: string | null = null;
 
   if (row.cuota_id && row.cuota) {
     tipo = 'cuota';
     concepto = `Cuota ${row.cuota.nro_cuota}/${row.cuota.prestamo?.cantidad_cuotas ?? '?'}`;
     cliente = row.cuota.prestamo?.cliente ?? null;
+    prestamoId = row.cuota.prestamo?.id ?? null;
   } else if (row.gasto_administrativo_id && row.gasto) {
     tipo = 'gasto';
     concepto = `Gasto Administrativo #${row.gasto.numero}`;
     cliente = row.gasto.prestamo?.cliente ?? null;
+    prestamoId = row.gasto.prestamo?.id ?? null;
   } else if (row.multa_id && row.multa) {
     tipo = 'multa';
     concepto = `Multa por Atraso — ${row.multa.motivo}`;
     cliente = row.multa.prestamo?.cliente ?? null;
+    prestamoId = row.multa.prestamo?.id ?? null;
   }
 
   return {
     id: row.id,
     cuotaId: row.cuota_id,
+    prestamoId,
     tipo,
     concepto,
     clienteId: cliente?.id ?? null,
@@ -95,6 +105,7 @@ function mapPago(row: PagoRow): PagoDetalle {
     descuento: row.descuento,
     recargo: row.recargo,
     estado: row.estado,
+    cobradorNombre: row.cobrador?.nombre ?? null,
   };
 }
 

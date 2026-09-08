@@ -12,6 +12,8 @@ import {
   PeriodicidadCapitalizacion,
   PerfilSocio,
   ProductoAhorro,
+  ResumenFondosCooperativa,
+  SaldoAportaciones,
   TipoAportacion,
   TipoMovimiento,
   TipoProductoAhorro,
@@ -51,21 +53,37 @@ export async function getAportacionesByCliente(clienteId: string): Promise<Aport
   return ((data ?? []) as AportacionRow[]).map(mapAportacion);
 }
 
-/** Saldo actual de aportaciones de un socio (suma obligatoria+extraordinaria, menos retiros). */
-export async function getSaldoAportaciones(clienteId: string): Promise<number> {
-  const { data, error } = await supabase.rpc('saldos_aportaciones');
-  if (error) throw error;
-  const row = ((data ?? []) as { cliente_id: string; saldo: number }[]).find((r) => r.cliente_id === clienteId);
-  return row ? Number(row.saldo) : 0;
+interface SaldoAportacionesRow {
+  cliente_id: string;
+  saldo_total: number;
+  saldo_reserva: number;
+  saldo_retirable: number;
 }
 
-/** Saldos de aportaciones de todos los socios del tenant (mapa clienteId -> saldo). */
-export async function getSaldosAportaciones(): Promise<Record<string, number>> {
+function mapSaldoAportaciones(row: SaldoAportacionesRow): SaldoAportaciones {
+  return {
+    clienteId: row.cliente_id,
+    saldoTotal: Number(row.saldo_total),
+    saldoReserva: Number(row.saldo_reserva),
+    saldoRetirable: Number(row.saldo_retirable),
+  };
+}
+
+/** Saldo actual de aportaciones de un socio, desglosado (total/reserva no retirable/retirable). */
+export async function getSaldoAportaciones(clienteId: string): Promise<SaldoAportaciones> {
   const { data, error } = await supabase.rpc('saldos_aportaciones');
   if (error) throw error;
-  const map: Record<string, number> = {};
-  for (const row of (data ?? []) as { cliente_id: string; saldo: number }[]) {
-    map[row.cliente_id] = Number(row.saldo);
+  const row = ((data ?? []) as SaldoAportacionesRow[]).find((r) => r.cliente_id === clienteId);
+  return row ? mapSaldoAportaciones(row) : { clienteId, saldoTotal: 0, saldoReserva: 0, saldoRetirable: 0 };
+}
+
+/** Saldos de aportaciones de todos los socios del tenant (mapa clienteId -> saldo desglosado). */
+export async function getSaldosAportaciones(): Promise<Record<string, SaldoAportaciones>> {
+  const { data, error } = await supabase.rpc('saldos_aportaciones');
+  if (error) throw error;
+  const map: Record<string, SaldoAportaciones> = {};
+  for (const row of (data ?? []) as SaldoAportacionesRow[]) {
+    map[row.cliente_id] = mapSaldoAportaciones(row);
   }
   return map;
 }
@@ -97,6 +115,33 @@ export async function registrarAportacion(input: {
   });
   if (error) throw error;
   return data as string;
+}
+
+interface ResumenFondosRow {
+  capital_aportaciones_total: number;
+  capital_aportaciones_reserva: number;
+  capital_aportaciones_retirable: number;
+  ahorros_captados: number;
+  monto_otorgado_vigente: number;
+  capital_pendiente_cobro: number;
+  disponible_aportaciones: number;
+}
+
+/** Desglose de fondos de la cooperativa (capital social, reserva, ahorros, colocado y disponible) — ver resumen_fondos_cooperativa() en Postgres. */
+export async function getResumenFondosCooperativa(): Promise<ResumenFondosCooperativa | null> {
+  const { data, error } = await supabase.rpc('resumen_fondos_cooperativa');
+  if (error) throw error;
+  const row = (data as ResumenFondosRow[] | null)?.[0];
+  if (!row) return null;
+  return {
+    capitalAportacionesTotal: Number(row.capital_aportaciones_total),
+    capitalAportacionesReserva: Number(row.capital_aportaciones_reserva),
+    capitalAportacionesRetirable: Number(row.capital_aportaciones_retirable),
+    ahorrosCaptados: Number(row.ahorros_captados),
+    montoOtorgadoVigente: Number(row.monto_otorgado_vigente),
+    capitalPendienteCobro: Number(row.capital_pendiente_cobro),
+    disponibleAportaciones: Number(row.disponible_aportaciones),
+  };
 }
 
 export async function configurarInteresAportacion(tasaAnual: number, periodicidad: PeriodicidadCapitalizacion): Promise<void> {

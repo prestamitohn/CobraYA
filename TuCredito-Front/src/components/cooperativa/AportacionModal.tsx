@@ -15,7 +15,7 @@ interface AportacionModalProps {
   clienteNombreFijo?: string;
 }
 
-const TIPOS: TipoAportacion[] = ['obligatoria', 'extraordinaria', 'retiro'];
+const TIPOS: TipoAportacion[] = ['obligatoria', 'extraordinaria', 'reserva', 'retiro'];
 
 export function AportacionModal({ isOpen, onClose, clienteIdFijo, clienteNombreFijo }: AportacionModalProps) {
   const queryClient = useQueryClient();
@@ -108,7 +108,10 @@ export function AportacionModal({ isOpen, onClose, clienteIdFijo, clienteNombreF
               ))}
             </select>
             {tipo === 'retiro' && (
-              <p className="text-xs text-amber-500">El retiro se descuenta del saldo de aportaciones del socio; si no tiene saldo suficiente será rechazado.</p>
+              <p className="text-xs text-amber-500">El retiro se descuenta del saldo RETIRABLE del socio (obligatoria+extraordinaria); la reserva nunca se toma en cuenta y si no alcanza será rechazado.</p>
+            )}
+            {tipo === 'reserva' && (
+              <p className="text-xs text-muted">Capital bloqueado — suma al saldo del socio pero nunca podrá retirarse.</p>
             )}
           </div>
 

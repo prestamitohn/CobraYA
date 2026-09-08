@@ -12,15 +12,24 @@ export type FrecuenciaGastoAdministrativo = 'semanal' | 'mensual' | 'por_cuota';
 export type EstadoSuscripcion = 'prueba' | 'activa' | 'suspendida' | 'cancelada';
 export type TipoCuentaPago = 'banco' | 'tigo_money' | 'paypal' | 'otro';
 export type TipoTenant = 'prestamista' | 'cooperativa';
-export type TipoAportacion = 'obligatoria' | 'extraordinaria' | 'retiro';
+export type TipoAportacion = 'obligatoria' | 'extraordinaria' | 'reserva' | 'retiro';
 
 export function getTipoAportacionLabel(tipo: TipoAportacion): string {
   switch (tipo) {
     case 'obligatoria': return 'Obligatoria';
     case 'extraordinaria': return 'Extraordinaria';
+    case 'reserva': return 'Reserva (no retirable)';
     case 'retiro': return 'Retiro';
     default: return tipo;
   }
+}
+
+/** Saldo de capital social de un socio, desglosado — la reserva nunca es elegible para retiro (ver registrar_aportacion en Postgres). */
+export interface SaldoAportaciones {
+  clienteId: string;
+  saldoTotal: number;
+  saldoReserva: number;
+  saldoRetirable: number;
 }
 
 export interface Aportacion {
@@ -215,6 +224,9 @@ export interface Cliente {
   usuarioId?: string | null;
   numeroSocio?: string | null;
   fechaIngreso?: string;
+  /** Baja definitiva (retiro), distinta de una simple desactivación temporal — ver dar_baja_socio(). */
+  fechaRetiro?: string | null;
+  motivoRetiro?: string | null;
 }
 
 export interface Prestamo {
@@ -399,6 +411,39 @@ export function getEstadoPrestamoLabel(estado: EstadoPrestamo): string {
     case 'refinanciado': return 'Refinanciado';
     default: return estado;
   }
+}
+
+/** Fila del reporte consolidado de préstamos (RPC reporte_prestamos) — página Reportes. */
+export interface ReportePrestamoRow {
+  prestamoId: string;
+  clienteId: string;
+  clienteNombre: string;
+  clienteApellido?: string | null;
+  clienteDocumento: string;
+  numeroSocio?: string | null;
+  montoOtorgado: number;
+  /** Monto de la próxima cuota pendiente/vencida — null si el préstamo ya está saldado. */
+  montoCuotaActual?: number | null;
+  cuotasPagadas: number;
+  cuotasTotales: number;
+  totalPagado: number;
+  /** Suma de cuotas.saldo_pendiente — NO prestamos.saldo_restante (ver comentario en la migración del RPC). */
+  saldoPendiente: number;
+  estado: EstadoPrestamo;
+  fechaOtorgamiento: string;
+  fechaFinEstimada?: string | null;
+}
+
+/** Desglose de fondos de una cooperativa (RPC resumen_fondos_cooperativa) — página Reportes. */
+export interface ResumenFondosCooperativa {
+  capitalAportacionesTotal: number;
+  capitalAportacionesReserva: number;
+  capitalAportacionesRetirable: number;
+  ahorrosCaptados: number;
+  montoOtorgadoVigente: number;
+  capitalPendienteCobro: number;
+  /** capitalAportacionesTotal - capitalPendienteCobro — cuánto de las aportaciones NO está prestado. */
+  disponibleAportaciones: number;
 }
 
 export function getEstadoCuotaLabel(estado: EstadoCuota): string {

@@ -21,7 +21,7 @@ interface FilaSocio {
   motivoExclusion: string;
 }
 
-const TIPOS: TipoAportacion[] = ['obligatoria', 'extraordinaria'];
+const TIPOS: TipoAportacion[] = ['obligatoria', 'extraordinaria', 'reserva'];
 
 type ResultadoFila = { clienteId: string; nombre: string; ok: boolean; error?: string };
 

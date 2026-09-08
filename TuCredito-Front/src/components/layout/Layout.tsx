@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '../../context/AuthContext';
 import { Clock } from 'lucide-react';
+import { InstallAppBanner } from '../ui/InstallAppButton';
 
 export function Layout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -30,6 +31,7 @@ export function Layout() {
             </span>
           </div>
         )}
+        <InstallAppBanner />
         <main className="flex-1 overflow-y-auto p-4 md:p-8 relative z-10 scrollbar-thin">
           <Outlet />
         </main>

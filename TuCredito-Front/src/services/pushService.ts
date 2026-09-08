@@ -18,7 +18,11 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
-async function registerServiceWorker(): Promise<ServiceWorkerRegistration> {
+/** Registra sw.js — se llama al arrancar la app (main.tsx) para que el shell quede
+ * cacheado y el navegador pueda ofrecer "Instalar app" desde el primer momento, sin
+ * depender de que el usuario active las notificaciones push primero. */
+export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | undefined> {
+  if (!('serviceWorker' in navigator)) return undefined;
   return navigator.serviceWorker.register('/sw.js');
 }
 
@@ -45,6 +49,7 @@ export async function subscribeToPush(tenantId: string, usuarioId: string): Prom
 
   try {
     const registration = await registerServiceWorker();
+    if (!registration) return { ok: false, reason: 'unsupported' };
     await navigator.serviceWorker.ready;
 
     let subscription = await registration.pushManager.getSubscription();
