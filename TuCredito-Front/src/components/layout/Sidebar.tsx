@@ -1,11 +1,18 @@
-import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert, Gavel, PiggyBank, TrendingUp, Wallet2 } from 'lucide-react';
+import { LayoutDashboard, Wallet, Users, Banknote, Calculator, Settings, LogOut, X, ShieldAlert, Gavel, PiggyBank, TrendingUp, Wallet2, FileBarChart } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { getMyTenant } from '../../services/tenantService';
+import { RolUsuario } from '../../types/cobraya';
 
-function buildSidebarItems(esCooperativa: boolean) {
+// Un cobrador ('collector') solo cobra lo que le asignaron: ve Inicio/Préstamos/
+// Clientes/Pagos/Multas/Calculadora, nunca Configuración ni el módulo de cooperativa
+// (RLS ya lo bloquea a nivel de datos — ver App.tsx OwnerRoute — esto solo evita
+// mostrarle un link a una pantalla que le va a rechazar todo). El auditor SÍ conserva
+// estos links (solo lectura vía RLS, mismo panel que el dueño).
+function buildSidebarItems(esCooperativa: boolean, rol: RolUsuario | undefined) {
+  const esCollector = rol === 'collector';
   const items = [
     { icon: LayoutDashboard, label: 'Inicio', to: '/' },
     { icon: Wallet, label: 'Préstamos', to: '/loans' },
@@ -13,17 +20,20 @@ function buildSidebarItems(esCooperativa: boolean) {
     { icon: Banknote, label: 'Pagos', to: '/payments' },
     { icon: Gavel, label: 'Multas', to: '/multas' },
   ];
-  if (esCooperativa) {
+  if (esCooperativa && !esCollector) {
     items.push(
       { icon: PiggyBank, label: 'Aportaciones', to: '/aportaciones' },
       { icon: Wallet2, label: 'Ahorros', to: '/ahorros' },
       { icon: TrendingUp, label: 'Excedentes', to: '/excedentes' },
     );
   }
-  items.push(
-    { icon: Calculator, label: 'Calculadora', to: '/calculator' },
-    { icon: Settings, label: 'Configuración', to: '/settings' },
-  );
+  if (!esCollector) {
+    items.push({ icon: FileBarChart, label: 'Reportes', to: '/reportes' });
+  }
+  items.push({ icon: Calculator, label: 'Calculadora', to: '/calculator' });
+  if (!esCollector) {
+    items.push({ icon: Settings, label: 'Configuración', to: '/settings' });
+  }
   return items;
 }
 
@@ -35,7 +45,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const { logout, user, esSuperadmin } = useAuth();
   const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant, enabled: !esSuperadmin && !!user });
-  const sidebarItems = buildSidebarItems(tenant?.tipoTenant === 'cooperativa');
+  const sidebarItems = buildSidebarItems(tenant?.tipoTenant === 'cooperativa', user?.rol);
 
   return (
     <>

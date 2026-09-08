@@ -372,10 +372,17 @@ export function BorrowerDetails() {
                   <p><span className="text-muted">Teléfono:</span> {borrower.telefono}</p>
                   <p><span className="text-muted">Dirección:</span> {borrower.domicilio}</p>
                   <p><span className="text-muted">Estado:</span>
-                    <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${borrower.activo ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                      {borrower.activo ? 'Activo' : 'Inactivo'}
+                    <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      borrower.fechaRetiro ? 'bg-gray-500/10 text-gray-400' : borrower.activo ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+                    }`}>
+                      {borrower.fechaRetiro ? 'Retirado' : borrower.activo ? 'Activo' : 'Inactivo'}
                     </span>
                   </p>
+                  {borrower.fechaRetiro && (
+                    <p className="text-xs text-muted">
+                      Baja el {formatDate(borrower.fechaRetiro)}{borrower.motivoRetiro ? ` — ${borrower.motivoRetiro}` : ''}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -529,7 +536,7 @@ export function BorrowerDetails() {
                       <tr key={a.id} className="hover:bg-surfaceHighlight/50 transition-colors">
                         <td className="px-6 py-4 text-muted">{formatDate(a.fecha)}</td>
                         <td className="px-6 py-4">
-                          <StatusBadge variant={a.tipo === 'retiro' ? 'error' : 'success'}>
+                          <StatusBadge variant={a.tipo === 'retiro' ? 'error' : a.tipo === 'reserva' ? 'warning' : 'success'}>
                             {getTipoAportacionLabel(a.tipo)}
                           </StatusBadge>
                         </td>

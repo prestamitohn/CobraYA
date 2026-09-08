@@ -24,9 +24,16 @@ export function Aportaciones() {
     return socios.filter((s) => `${s.nombre} ${s.apellido ?? ''}`.toLowerCase().includes(term) || s.documento.includes(term));
   }, [socios, searchTerm]);
 
-  const totalAportado = useMemo(() => {
-    if (!saldos) return 0;
-    return Object.values(saldos).reduce((acc, v) => acc + v, 0);
+  const totales = useMemo(() => {
+    if (!saldos) return { total: 0, reserva: 0, retirable: 0 };
+    return Object.values(saldos).reduce(
+      (acc, s) => ({
+        total: acc.total + s.saldoTotal,
+        reserva: acc.reserva + s.saldoReserva,
+        retirable: acc.retirable + s.saldoRetirable,
+      }),
+      { total: 0, reserva: 0, retirable: 0 },
+    );
   }, [saldos]);
 
   if (isLoading) {
@@ -78,8 +85,16 @@ export function Aportaciones() {
           </div>
           <div className="min-w-0">
             <p className="text-sm text-muted truncate">Capital Social Total</p>
-            <p className="text-2xl font-bold text-main truncate">{formatCurrency(totalAportado)}</p>
+            <p className="text-2xl font-bold text-main truncate">{formatCurrency(totales.total)}</p>
           </div>
+        </div>
+        <div className="glass-panel p-4 rounded-xl">
+          <p className="text-sm text-muted truncate">En Reserva (no retirable)</p>
+          <p className="text-2xl font-bold text-main truncate">{formatCurrency(totales.reserva)}</p>
+        </div>
+        <div className="glass-panel p-4 rounded-xl">
+          <p className="text-sm text-muted truncate">Disponible para Retiro</p>
+          <p className="text-2xl font-bold text-main truncate">{formatCurrency(totales.retirable)}</p>
         </div>
       </div>
 
@@ -103,6 +118,7 @@ export function Aportaciones() {
               <tr>
                 <th className="px-6 py-3 font-medium">Socio</th>
                 <th className="px-6 py-3 font-medium">Identidad</th>
+                <th className="px-6 py-3 font-medium text-right">Reserva</th>
                 <th className="px-6 py-3 font-medium text-right">Saldo de Aportaciones</th>
               </tr>
             </thead>
@@ -118,12 +134,13 @@ export function Aportaciones() {
                     </button>
                   </td>
                   <td className="px-6 py-4 text-muted">{socio.documento}</td>
-                  <td className="px-6 py-4 text-main text-right font-medium">{formatCurrency(saldos?.[socio.id] ?? 0)}</td>
+                  <td className="px-6 py-4 text-muted text-right">{formatCurrency(saldos?.[socio.id]?.saldoReserva ?? 0)}</td>
+                  <td className="px-6 py-4 text-main text-right font-medium">{formatCurrency(saldos?.[socio.id]?.saldoTotal ?? 0)}</td>
                 </tr>
               ))}
               {filteredSocios?.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-muted">
+                  <td colSpan={4} className="px-6 py-8 text-center text-muted">
                     No se encontraron socios
                   </td>
                 </tr>

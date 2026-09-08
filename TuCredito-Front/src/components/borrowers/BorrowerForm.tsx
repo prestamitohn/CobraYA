@@ -30,10 +30,12 @@ interface BorrowerFormProps {
   submitLabel: string;
   /** El campo Número de Socio solo tiene sentido en una cooperativa — un prestamista no maneja membresías. */
   esCooperativa?: boolean;
+  /** Correlativo propuesto (ej. "0005") para precargar en un socio nuevo — se ignora si hay initialData. Queda editable. */
+  numeroSocioSugerido?: string;
 }
 
-export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel, esCooperativa }: BorrowerFormProps) {
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<BorrowerFormData>({
+export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel, esCooperativa, numeroSocioSugerido }: BorrowerFormProps) {
+  const { register, handleSubmit, formState: { errors }, reset, setValue, getValues } = useForm<BorrowerFormData>({
     resolver: zodResolver(borrowerSchema),
     defaultValues: {
       documento: '',
@@ -71,6 +73,15 @@ export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel, es
       });
     }
   }, [initialData, reset]);
+
+  // El correlativo sugerido llega async (consulta aparte en la página que crea el
+  // socio) — se precarga solo si el campo sigue vacío y no es una edición, para no
+  // pisar lo que el usuario ya haya escrito.
+  useEffect(() => {
+    if (!initialData && numeroSocioSugerido && !getValues('numeroSocio')) {
+      setValue('numeroSocio', numeroSocioSugerido);
+    }
+  }, [numeroSocioSugerido, initialData, setValue, getValues]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -151,7 +162,7 @@ export function BorrowerForm({ initialData, onSubmit, isLoading, submitLabel, es
                 className="w-full bg-surface/50 border border-border rounded-lg px-4 py-2.5 text-main placeholder-muted focus:outline-none focus:border-primary-500 transition-colors"
                 placeholder="0001"
               />
-              <p className="text-xs text-muted mt-1">Opcional — el correlativo con el que la cooperativa identifica a este socio.</p>
+              <p className="text-xs text-muted mt-1">Se propone el siguiente correlativo automáticamente — podés cambiarlo si tu cooperativa ya usa otra numeración.</p>
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { createBorrower } from '../services/borrowerService';
+import { createBorrower, getSiguienteNumeroSocio } from '../services/borrowerService';
 import { getMyTenant } from '../services/tenantService';
 import { ArrowLeft } from 'lucide-react';
 import { BorrowerForm, BorrowerFormData } from '../components/borrowers/BorrowerForm';
@@ -15,6 +15,12 @@ export function CreateBorrower() {
   const { data: tenant } = useQuery({ queryKey: ['tenant'], queryFn: getMyTenant });
   const esCooperativa = tenant?.tipoTenant === 'cooperativa';
   const etiqueta = esCooperativa ? 'Socio' : 'Cliente';
+
+  const { data: numeroSocioSugerido } = useQuery({
+    queryKey: ['siguienteNumeroSocio'],
+    queryFn: getSiguienteNumeroSocio,
+    enabled: esCooperativa,
+  });
 
   const onSubmit = async (data: BorrowerFormData) => {
     setIsLoading(true);
@@ -41,7 +47,12 @@ export function CreateBorrower() {
       addToast(`${etiqueta} registrado correctamente`, 'success');
       navigate('/borrowers');
     } catch (err: any) {
-      addToast(err.message || `Error al registrar el ${etiqueta.toLowerCase()}`, 'error');
+      const msg = err.message?.includes('uq_clientes_tenant_numero_socio')
+        ? 'Ese número de socio ya está en uso — elegí otro.'
+        : err.message?.includes('uq_clientes_tenant_documento')
+          ? 'Ya existe un registro con esa identidad/RTN.'
+          : err.message || `Error al registrar el ${etiqueta.toLowerCase()}`;
+      addToast(msg, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -68,6 +79,7 @@ export function CreateBorrower() {
           isLoading={isLoading}
           submitLabel={`Guardar ${etiqueta}`}
           esCooperativa={esCooperativa}
+          numeroSocioSugerido={numeroSocioSugerido}
         />
       </div>
     </div>

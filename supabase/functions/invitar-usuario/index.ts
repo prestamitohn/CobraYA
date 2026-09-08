@@ -1,10 +1,10 @@
 // Edge Function: invitar-usuario
 //
 // El dueño de un tenant invita a un socio (con login propio, vinculado a un cliente
-// existente) o a un auditor (solo lectura) a su MISMO tenant. A diferencia de
-// admin-crear-tenant (que crea un tenant NUEVO y solo la usa el superadmin), esta
-// función la invoca el OWNER de un tenant existente para dar de alta gente en SU
-// cooperativa — mismo patrón de doble verificación:
+// existente), a un auditor (solo lectura) o a un cobrador de campo (collector) a su
+// MISMO tenant. A diferencia de admin-crear-tenant (que crea un tenant NUEVO y solo la
+// usa el superadmin), esta función la invoca el OWNER de un tenant existente para dar
+// de alta gente en SU negocio — mismo patrón de doble verificación:
 //  1. Con el cliente anon+JWT del caller, se confirma que es 'owner' de un tenant (RPC
 //     current_rol()) antes de tocar nada.
 //  2. Recién ahí se usa service_role para la única operación que lo necesita: crear el
@@ -16,7 +16,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders, handleCorsPreflight } from '../_shared/cors.ts';
 
 interface InvitarUsuarioPayload {
-  rol: 'socio' | 'auditor';
+  rol: 'socio' | 'auditor' | 'collector';
   correo: string;
   password: string;
   nombreUsuario: string;
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
   if (!rol || !correo || !password || !nombreUsuario) {
     return jsonResponse({ error: 'Payload incompleto' }, 400);
   }
-  if (rol !== 'socio' && rol !== 'auditor') {
+  if (rol !== 'socio' && rol !== 'auditor' && rol !== 'collector') {
     return jsonResponse({ error: 'rol inválido' }, 400);
   }
   if (rol === 'socio' && !clienteId) {

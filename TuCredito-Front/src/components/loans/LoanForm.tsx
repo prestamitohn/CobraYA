@@ -6,9 +6,10 @@ import * as z from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { simulateLoan, createLoan, previsualizarTcea, compararFlatVsSaldos, TceaResultado } from '../../services/loanService';
 import { getBorrowers } from '../../services/borrowerService';
-import { periodosPorAnio, type SimulacionResultado } from '../../lib/amortizacion';
+import { listUsuarios } from '../../services/authService';
+import { periodosPorAnio, tasaAnualAPorPeriodo, type SimulacionResultado } from '../../lib/amortizacion';
 import { SISTEMAS_AMORTIZACION, FRECUENCIAS_COBRO, FRECUENCIAS_GASTO_ADMINISTRATIVO } from '../../types/cobraya';
-import { Loader2, Calculator, CheckCircle, User, Search, Receipt, AlertTriangle } from 'lucide-react';
+import { Loader2, Calculator, CheckCircle, User, Search, Receipt, AlertTriangle, UserCog } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { CurrencyInput } from '../ui/CurrencyInput';
@@ -30,6 +31,7 @@ const loanSchema = z.object({
   gastoAdministrativoFrecuencia: z.enum(['semanal', 'mensual', 'por_cuota']).optional(),
   tieneMulta: z.boolean(),
   multaPorAtrasoMonto: z.number().optional(),
+  cobradorId: z.string().optional(),
 }).refine(
   (data) => !data.tieneGastoAdministrativo || (data.gastoAdministrativoMonto ?? 0) > 0,
   { message: 'Indicá el monto del gasto administrativo', path: ['gastoAdministrativoMonto'] },
@@ -39,6 +41,15 @@ const loanSchema = z.object({
 );
 
 type LoanFormData = z.infer<typeof loanSchema>;
+
+// Días aproximados por período, solo para estimar el plazo en calendario y el atajo
+// "hasta fin de año" — el cronograma real (con fechas exactas) lo calcula
+// sumarPeriodo() en lib/amortizacion.ts al simular. Constante de módulo (no dentro
+// del componente) para que los useMemo que la usan no la vean como una dependencia
+// distinta en cada render.
+const DIAS_POR_PERIODO: Record<LoanFormData['frecuenciaCobro'], number> = {
+  diario: 1, semanal: 7, quincenal: 15, mensual: 30,
+};
 
 export function LoanForm() {
   const { addToast } = useToast();
@@ -59,7 +70,7 @@ export function LoanForm() {
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
   const [pendingData, setPendingData] = useState<LoanFormData | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, getValues, reset, control, watch } = useForm<LoanFormData>({
+  const { register, handleSubmit, formState: { errors }, getValues, reset, control, watch, setValue } = useForm<LoanFormData>({
     resolver: zodResolver(loanSchema),
     defaultValues: {
       clienteId: '',
@@ -71,6 +82,7 @@ export function LoanForm() {
       tieneGastoAdministrativo: false,
       gastoAdministrativoFrecuencia: 'por_cuota',
       tieneMulta: false,
+      cobradorId: '',
     }
   });
 
@@ -81,36 +93,50 @@ export function LoanForm() {
   const sistemaAmortizacionWatch = watch('sistemaAmortizacion');
   const cantidadCuotasWatch = watch('cantidadCuotas');
   const montoOtorgadoWatch = watch('montoOtorgado');
+  const fechaOtorgamientoWatch = watch('fechaOtorgamiento');
+
+  // Fecha estimada de la última cuota — para que el default de 12 cuotas no
+  // empuje a todos los préstamos a un año completo sin que el usuario lo note
+  // (el pedido original de la cooperativa: un préstamo otorgado a mitad de año
+  // debe poder armarse a 6 meses, no forzar 12).
+  const fechaFinEstimada = useMemo(() => {
+    if (!fechaOtorgamientoWatch || !cantidadCuotasWatch || Number(cantidadCuotasWatch) <= 0) return undefined;
+    const inicio = new Date(`${fechaOtorgamientoWatch}T00:00:00Z`);
+    if (Number.isNaN(inicio.getTime())) return undefined;
+    const fin = new Date(inicio.getTime());
+    fin.setUTCDate(fin.getUTCDate() + Number(cantidadCuotasWatch) * DIAS_POR_PERIODO[frecuenciaCobroWatch]);
+    return fin;
+  }, [fechaOtorgamientoWatch, cantidadCuotasWatch, frecuenciaCobroWatch]);
+
+  // Cuántas cuotas hacen falta para que el plazo termine el 31 de diciembre del
+  // año de otorgamiento (ej. otorgado en junio → cuotas hasta fin de año, no 12).
+  const cuotasHastaFinDeAnio = useMemo(() => {
+    if (!fechaOtorgamientoWatch) return undefined;
+    const inicio = new Date(`${fechaOtorgamientoWatch}T00:00:00Z`);
+    if (Number.isNaN(inicio.getTime())) return undefined;
+    const finAnio = new Date(Date.UTC(inicio.getUTCFullYear(), 11, 31));
+    const diasRestantes = Math.round((finAnio.getTime() - inicio.getTime()) / 86400000);
+    if (diasRestantes <= 0) return undefined;
+    return Math.max(1, Math.round(diasRestantes / DIAS_POR_PERIODO[frecuenciaCobroWatch]));
+  }, [fechaOtorgamientoWatch, frecuenciaCobroWatch]);
 
   // Conversión de "tasa anual" a la tasa por período que de verdad recibe el motor
-  // de amortización — y NO es la misma cuenta para todos los sistemas:
-  //  - Directo (flat): en Honduras "12% anual" casi siempre significa "12% total
-  //    sobre el capital para TODO el préstamo", sin importar el plazo — no se
-  //    prorratea por año. calcularDirecto() multiplica tasa_periodo × n_cuotas para
-  //    obtener el interés total, así que para que ese total dé exactamente el 12%
-  //    declarado, la tasa por período que hay que pasarle es tasa/n_cuotas (no
-  //    tasa/periodos_por_año). Ejemplo real verificado: L10,000 al 12%, 20 cuotas
-  //    semanales → 12/20 = 0.6%/cuota → interés total L1,200, cuota L560, total L11,200.
-  //  - Francés/Alemán/Americano: acá sí es una tasa anual real (interés sobre saldo,
-  //    convención estándar de banca) — se reparte entre los períodos del año.
-  const aTasaPorPeriodo = (
-    tasaIngresada: number,
-    frecuencia: LoanFormData['frecuenciaCobro'],
-    sistema: LoanFormData['sistemaAmortizacion'],
-    cantidadCuotas: number,
-  ): number => {
+  // de amortización — prorrateada por la frecuencia de cobro, igual para los 4
+  // sistemas (ver el comentario largo en lib/amortizacion.ts:tasaAnualAPorPeriodo).
+  // Antes "directo" (flat) tenía una cuenta aparte que dividía entre cantidadCuotas
+  // en vez de entre períodos-por-año, así que un flat cobraba el 12% completo sin
+  // importar si el plazo era de 6 o de 12 meses — bug real reportado por una
+  // cooperativa cliente, corregido acá.
+  const aTasaPorPeriodo = (tasaIngresada: number, frecuencia: LoanFormData['frecuenciaCobro']): number => {
     if (tasaModo !== 'anual') return tasaIngresada;
-    if (sistema === 'directo') {
-      return cantidadCuotas > 0 ? tasaIngresada / cantidadCuotas : tasaIngresada;
-    }
-    return tasaIngresada / periodosPorAnio(frecuencia);
+    return tasaAnualAPorPeriodo(tasaIngresada, frecuencia);
   };
 
   const tasaPeriodicaEfectiva = useMemo(() => {
     if (tasaInteresIngresada == null || Number.isNaN(tasaInteresIngresada)) return undefined;
-    return aTasaPorPeriodo(tasaInteresIngresada, frecuenciaCobroWatch, sistemaAmortizacionWatch, Number(cantidadCuotasWatch));
+    return aTasaPorPeriodo(tasaInteresIngresada, frecuenciaCobroWatch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasaInteresIngresada, frecuenciaCobroWatch, sistemaAmortizacionWatch, cantidadCuotasWatch, tasaModo]);
+  }, [tasaInteresIngresada, frecuenciaCobroWatch, tasaModo]);
 
   // Lo que se muestra como "tasa nominal declarada" — a diferencia de la tasa por
   // período (de uso interno), esto es simplemente lo que el usuario escribió,
@@ -125,6 +151,11 @@ export function LoanForm() {
   const { data: borrowers } = useQuery({
     queryKey: ['borrowers'],
     queryFn: () => getBorrowers(),
+  });
+
+  const { data: cobradores } = useQuery({
+    queryKey: ['usuarios-tenant', 'collector'],
+    queryFn: () => listUsuarios('collector'),
   });
 
   const createMutation = useMutation({
@@ -158,7 +189,7 @@ export function LoanForm() {
       const entrada = {
         montoPrestamo: Number(data.montoOtorgado),
         cantidadCuotas: Number(data.cantidadCuotas),
-        tasaInteres: aTasaPorPeriodo(Number(data.tasaInteres), data.frecuenciaCobro, data.sistemaAmortizacion, Number(data.cantidadCuotas)),
+        tasaInteres: aTasaPorPeriodo(Number(data.tasaInteres), data.frecuenciaCobro),
         fechaInicio: new Date(`${data.fechaOtorgamiento}T00:00:00Z`),
         sistemaAmortizacion: data.sistemaAmortizacion,
         frecuenciaCobro: data.frecuenciaCobro,
@@ -196,7 +227,7 @@ export function LoanForm() {
       clienteId: pendingData.clienteId,
       montoPrestamo: Number(pendingData.montoOtorgado),
       cantidadCuotas: Number(pendingData.cantidadCuotas),
-      tasaInteres: aTasaPorPeriodo(Number(pendingData.tasaInteres), pendingData.frecuenciaCobro, pendingData.sistemaAmortizacion, Number(pendingData.cantidadCuotas)),
+      tasaInteres: aTasaPorPeriodo(Number(pendingData.tasaInteres), pendingData.frecuenciaCobro),
       sistemaAmortizacion: pendingData.sistemaAmortizacion,
       frecuenciaCobro: pendingData.frecuenciaCobro,
       fechaOtorgamiento: pendingData.fechaOtorgamiento,
@@ -204,6 +235,7 @@ export function LoanForm() {
       gastoAdministrativoMonto: pendingData.tieneGastoAdministrativo ? Number(pendingData.gastoAdministrativoMonto) : null,
       gastoAdministrativoFrecuencia: pendingData.tieneGastoAdministrativo ? pendingData.gastoAdministrativoFrecuencia : null,
       multaPorAtrasoMonto: pendingData.tieneMulta ? Number(pendingData.multaPorAtrasoMonto) : null,
+      cobradorId: pendingData.cobradorId || null,
     });
   };
 
@@ -251,6 +283,25 @@ export function LoanForm() {
               <p className="mt-1 text-xs text-red-400">{errors.clienteId.message}</p>
             )}
           </div>
+
+          {cobradores && cobradores.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-muted flex items-center gap-2">
+                <UserCog className="h-4 w-4 text-primary-500" />
+                Cobrador asignado (Opcional)
+              </label>
+              <select
+                {...register('cobradorId')}
+                className="mt-1 block w-full rounded-xl border border-border bg-surface/50 px-4 py-3 text-main focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-200 [&>option]:bg-surface"
+              >
+                <option value="">-- Sin asignar --</option>
+                {cobradores.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted">El cobrador solo verá y podrá cobrar los préstamos que le asignes.</p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-muted">Alias (Opcional)</label>
@@ -305,10 +356,12 @@ export function LoanForm() {
                 className={`block w-full rounded-xl border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:ring-1 transition-all duration-200 ${errors.tasaInteres ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border focus:border-primary-500 focus:ring-primary-500'}`}
               />
               {errors.tasaInteres && <p className="mt-1 text-xs text-red-400">{errors.tasaInteres.message}</p>}
-              {tasaModo === 'anual' && sistemaAmortizacionWatch === 'directo' && tasaInteresIngresada != null && !Number.isNaN(tasaInteresIngresada) && (
+              {tasaModo === 'anual' && sistemaAmortizacionWatch === 'directo' && tasaPeriodicaEfectiva !== undefined && (
                 <p className="mt-1 text-xs text-muted">
-                  Flat: se aplica una sola vez sobre el capital para todo el préstamo (no se prorratea por período).
-                  {montoOtorgadoWatch ? ` = ${formatCurrency(montoOtorgadoWatch * (tasaInteresIngresada / 100))} de interés total.` : ''}
+                  ≈ {tasaPeriodicaEfectiva.toLocaleString('es-HN', { maximumFractionDigits: 4 })}% {FRECUENCIAS_COBRO.find((f) => f.value === frecuenciaCobroWatch)?.label.toLowerCase()} — se prorratea por el plazo real:
+                  {montoOtorgadoWatch && cantidadCuotasWatch
+                    ? ` ${cantidadCuotasWatch} cuota(s) = ${formatCurrency(montoOtorgadoWatch * (tasaPeriodicaEfectiva / 100) * Number(cantidadCuotasWatch))} de interés total.`
+                    : ''}
                 </p>
               )}
               {tasaModo === 'anual' && sistemaAmortizacionWatch !== 'directo' && tasaPeriodicaEfectiva !== undefined && (
@@ -321,13 +374,28 @@ export function LoanForm() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-muted">Cuotas</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-muted">Cuotas</label>
+                {cuotasHastaFinDeAnio !== undefined && Number(cantidadCuotasWatch) !== cuotasHastaFinDeAnio && (
+                  <button
+                    type="button"
+                    onClick={() => setValue('cantidadCuotas', cuotasHastaFinDeAnio, { shouldValidate: true })}
+                    className="text-xs text-primary-400 hover:text-primary-300"
+                  >
+                    Hasta fin de año ({cuotasHastaFinDeAnio})
+                  </button>
+                )}
+              </div>
               <input
                 type="number"
                 {...register('cantidadCuotas', { valueAsNumber: true })}
                 className={`mt-1 block w-full rounded-xl border bg-surface/50 px-4 py-3 text-main placeholder-muted focus:ring-1 transition-all duration-200 ${errors.cantidadCuotas ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border focus:border-primary-500 focus:ring-primary-500'}`}
               />
-              {errors.cantidadCuotas && <p className="mt-1 text-xs text-red-400">{errors.cantidadCuotas.message}</p>}
+              {errors.cantidadCuotas ? (
+                <p className="mt-1 text-xs text-red-400">{errors.cantidadCuotas.message}</p>
+              ) : fechaFinEstimada ? (
+                <p className="mt-1 text-xs text-muted">Plazo estimado: vence ≈ {formatDate(fechaFinEstimada)} (la fecha exacta la fija la simulación).</p>
+              ) : null}
             </div>
             <div>
               <label className="block text-sm font-medium text-muted">Frecuencia de Cobro</label>

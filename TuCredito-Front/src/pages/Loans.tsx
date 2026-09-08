@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getLoansByFilter, deleteLoan } from '../services/loanService';
 import { getClasificacionesClientes } from '../services/clasificacionService';
+import { listUsuarios } from '../services/authService';
 import { Plus, Search, Filter, ArrowUpRight, AlertCircle, X, Trash2, Info, Edit2, Save } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { EstadoPrestamo, ClasificacionCliente, getEstadoPrestamoLabel, getClasificacionLabel } from '../types/cobraya';
@@ -41,6 +42,7 @@ export function Loans() {
     montoMin: string;
     montoMax: string;
     clasificacion: ClasificacionCliente | '';
+    cobradorId: string;
   }>({
     nombre: '',
     estado: '',
@@ -49,6 +51,7 @@ export function Loans() {
     montoMin: '',
     montoMax: '',
     clasificacion: '',
+    cobradorId: '',
   });
 
   useEffect(() => {
@@ -70,6 +73,7 @@ export function Loans() {
       fechaHasta: filters.fechaHasta || undefined,
       montoMin: filters.montoMin ? Number(filters.montoMin) : undefined,
       montoMax: filters.montoMax ? Number(filters.montoMax) : undefined,
+      cobradorId: filters.cobradorId || undefined,
     }),
   });
 
@@ -78,6 +82,16 @@ export function Loans() {
     queryFn: getClasificacionesClientes,
   });
   const clasificacionPorCliente = new Map(clasificaciones?.map((c) => [c.clienteId, c]));
+
+  const { data: cobradores } = useQuery({
+    queryKey: ['usuarios-tenant', 'collector'],
+    queryFn: () => listUsuarios('collector'),
+  });
+  const cobradorPorId = new Map(cobradores?.map((c) => [c.id, c.nombre]));
+  const exportColumns: ExportColumn<Prestamo>[] = [
+    ...LOAN_EXPORT_COLUMNS,
+    { header: 'Cobrador', value: (l) => (l.cobradorId ? cobradorPorId.get(l.cobradorId) ?? '' : '') },
+  ];
 
   const filteredLoans = filters.clasificacion
     ? loans?.filter((loan) => clasificacionPorCliente.get(loan.clienteId)?.clasificacion === filters.clasificacion)
@@ -121,11 +135,11 @@ export function Loans() {
   };
 
   const clearFilters = () => {
-    setFilters({ nombre: '', estado: '', fechaDesde: '', fechaHasta: '', montoMin: '', montoMax: '', clasificacion: '' });
+    setFilters({ nombre: '', estado: '', fechaDesde: '', fechaHasta: '', montoMin: '', montoMax: '', clasificacion: '', cobradorId: '' });
     setNameInput('');
   };
 
-  const hasAdvancedFilters = !!(filters.fechaDesde || filters.fechaHasta || filters.montoMin || filters.montoMax || filters.clasificacion);
+  const hasAdvancedFilters = !!(filters.fechaDesde || filters.fechaHasta || filters.montoMin || filters.montoMax || filters.clasificacion || filters.cobradorId);
 
   if (error) {
     return (
@@ -144,7 +158,7 @@ export function Loans() {
           <p className="text-muted">Gestiona y visualiza todos los préstamos activos</p>
         </div>
         <div className="flex gap-2">
-            <ExportMenu data={filteredLoans} columns={LOAN_EXPORT_COLUMNS} filenameBase="Prestamos" title="Reporte de Préstamos" />
+            <ExportMenu data={filteredLoans} columns={exportColumns} filenameBase="Prestamos" title="Reporte de Préstamos" />
             <Link
             to="/loans/create"
             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"
@@ -298,6 +312,21 @@ export function Loans() {
                   className="w-full bg-surface/50 border border-border rounded-lg px-3 py-2 text-sm text-main focus:outline-none focus:border-primary-500"
                 />
               </div>
+              {cobradores && cobradores.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1">Cobrador</label>
+                  <select
+                    value={filters.cobradorId}
+                    onChange={(e) => handleFilterChange('cobradorId', e.target.value)}
+                    className="w-full bg-surface/50 border border-border rounded-lg px-3 py-2 text-sm text-main focus:outline-none focus:border-primary-500 [&>option]:bg-surface"
+                  >
+                    <option value="">Todos</option>
+                    {cobradores.map((c) => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex items-end">
                 <button
                   onClick={clearFilters}
@@ -326,6 +355,7 @@ export function Loans() {
                 <th className="px-6 py-3 font-medium">Tasa</th>
                 <th className="px-6 py-3 font-medium">Frecuencia</th>
                 <th className="px-6 py-3 font-medium">Fecha</th>
+                <th className="px-6 py-3 font-medium">Cobrador</th>
                 <th className="px-6 py-3 font-medium">Estado</th>
                 <th className="px-6 py-3 font-medium">Acciones</th>
               </tr>
@@ -380,6 +410,7 @@ export function Loans() {
                   <td className="px-6 py-4 text-muted">{loan.tasaInteres}%</td>
                   <td className="px-6 py-4 text-muted capitalize">{loan.frecuenciaCobro}</td>
                   <td className="px-6 py-4 text-muted">{formatDate(loan.fechaOtorgamiento)}</td>
+                  <td className="px-6 py-4 text-muted">{loan.cobradorId ? cobradorPorId.get(loan.cobradorId) ?? '-' : '-'}</td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                       ${loan.estado === 'activo' ? 'bg-green-500/10 text-green-500' :
@@ -413,7 +444,7 @@ export function Loans() {
               ))}
               {filteredLoans?.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-muted">
+                  <td colSpan={9} className="px-6 py-8 text-center text-muted">
                     No se encontraron préstamos con los filtros seleccionados
                   </td>
                 </tr>
