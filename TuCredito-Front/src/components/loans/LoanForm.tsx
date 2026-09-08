@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -119,6 +119,18 @@ export function LoanForm() {
     if (diasRestantes <= 0) return undefined;
     return Math.max(1, Math.round(diasRestantes / DIAS_POR_PERIODO[frecuenciaCobroWatch]));
   }, [fechaOtorgamientoWatch, frecuenciaCobroWatch]);
+
+  // Bandera explícita de "ya aplicado", además de la comparación de valores: un usuario
+  // reportó que tras hacer click el campo Cuotas SÍ se actualiza pero el link seguía
+  // visible — comparar cantidadCuotasWatch contra cuotasHastaFinDeAnio depende de que
+  // react-hook-form dispare el re-render de watch() justo después de setValue(), lo cual
+  // no siempre es inmediato. Esta bandera oculta el link apenas se hace click, sin
+  // depender de esa comparación, y se resetea si el objetivo cambia (nueva fecha u otra
+  // frecuencia invalidan cualquier aplicación anterior).
+  const [hastaFinDeAnioAplicado, setHastaFinDeAnioAplicado] = useState(false);
+  useEffect(() => {
+    setHastaFinDeAnioAplicado(false);
+  }, [cuotasHastaFinDeAnio]);
 
   // Conversión de "tasa anual" a la tasa por período que de verdad recibe el motor
   // de amortización — prorrateada por la frecuencia de cobro, igual para los 4
@@ -376,10 +388,13 @@ export function LoanForm() {
             <div>
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-muted">Cuotas</label>
-                {cuotasHastaFinDeAnio !== undefined && Number(cantidadCuotasWatch) !== cuotasHastaFinDeAnio && (
+                {cuotasHastaFinDeAnio !== undefined && !hastaFinDeAnioAplicado && Number(cantidadCuotasWatch) !== cuotasHastaFinDeAnio && (
                   <button
                     type="button"
-                    onClick={() => setValue('cantidadCuotas', cuotasHastaFinDeAnio, { shouldValidate: true })}
+                    onClick={() => {
+                      setValue('cantidadCuotas', cuotasHastaFinDeAnio, { shouldValidate: true, shouldDirty: true });
+                      setHastaFinDeAnioAplicado(true);
+                    }}
                     className="text-xs text-primary-400 hover:text-primary-300"
                   >
                     Hasta fin de año ({cuotasHastaFinDeAnio})

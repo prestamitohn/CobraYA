@@ -219,7 +219,19 @@ function FondoCard({ icon: Icon, label, value, muted, highlight }: { icon: typeo
 
 function ReporteAportacionesPorSocioTab() {
   const [clienteId, setClienteId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const { data: socios } = useQuery({ queryKey: ['borrowers'], queryFn: () => getBorrowers() });
+
+  const sociosFiltrados = useMemo(() => {
+    if (!socios) return socios;
+    if (!searchTerm) return socios;
+    const term = searchTerm.toLowerCase();
+    return socios.filter((s) =>
+      `${s.nombre} ${s.apellido ?? ''}`.toLowerCase().includes(term) ||
+      s.documento.includes(term) ||
+      (s.numeroSocio ?? '').toLowerCase().includes(term),
+    );
+  }, [socios, searchTerm]);
   const { data: aportaciones, isLoading } = useQuery({
     queryKey: ['aportacionesCliente', clienteId],
     queryFn: () => getAportacionesByCliente(clienteId),
@@ -251,6 +263,16 @@ function ReporteAportacionesPorSocioTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative max-w-xs flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, identidad o N° socio..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2 text-sm text-main placeholder-muted focus:outline-none focus:border-primary-500 transition-colors"
+          />
+        </div>
         <div className="relative max-w-md flex-1">
           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
           <select
@@ -258,8 +280,8 @@ function ReporteAportacionesPorSocioTab() {
             onChange={(e) => setClienteId(e.target.value)}
             className="w-full bg-surface/50 border border-border rounded-lg pl-10 pr-4 py-2 text-sm text-main focus:outline-none focus:border-primary-500 [&>option]:bg-surface"
           >
-            <option value="">Selecciona un socio</option>
-            {socios?.map((s) => <option key={s.id} value={s.id}>{s.nombre} {s.apellido ?? ''}{s.numeroSocio ? ` (N° ${s.numeroSocio})` : ''}</option>)}
+            <option value="">Selecciona un socio{sociosFiltrados && sociosFiltrados.length !== (socios?.length ?? 0) ? ` (${sociosFiltrados.length} de ${socios?.length ?? 0})` : ''}</option>
+            {sociosFiltrados?.map((s) => <option key={s.id} value={s.id}>{s.nombre} {s.apellido ?? ''}{s.numeroSocio ? ` (N° ${s.numeroSocio})` : ''}</option>)}
           </select>
         </div>
         {clienteId && aportaciones && (
